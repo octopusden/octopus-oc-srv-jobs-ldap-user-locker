@@ -1,0 +1,68 @@
+{
+    "entries": [
+        {
+            "dn": "ou=TestUnit,dc=some,dc=test,dc=domain,dc=local",
+            "attributes": {
+                "objectClass": "organizationalUnit",
+                "ou": "TestUnit"
+            },
+            "raw": {
+                "ou": [
+                    "TestUnit"
+                ],
+                "objectClass": [
+                    "organizationalUnit"
+                ],
+                "entryDN": [
+                    "ou=TestUnit,dc=some,dc=test,dc=domain,dc=local"
+                ]
+            }
+        },
+        {
+            "dn": "ou=TechUsers,ou=TestUnit,dc=some,dc=test,dc=domain,dc=local",
+            "attributes": {
+                "objectClass": "organizationalUnit",
+                "ou": "TechUsers"
+            },
+            "raw": {
+                "ou": [
+                    "TechUsers"
+                ],
+                "objectClass": [
+                    "organizationalUnit"
+                ],
+                "entryDN": [
+                    "ou=TechUsers,ou=TestUnit,dc=some,dc=test,dc=domain,dc=local"
+                ]
+            }
+        },
+        {
+            "dn": "cn=LDAP Admins,dc=some,dc=test,dc=domain,dc=local",
+            "attributes": {
+                "objectClass": "groupOfNames",
+                "cn": "LDAP Admins",
+                "ou": "TestUnit",
+                "member": [
+                    "cn=LDAP Admin,ou=TechUsers,ou=TestUnit,dc=some,dc=test,dc=domain,dc=local"
+                ]
+            },
+            "raw": {
+                "objectClass": [
+                    "groupOfNames"
+                ],
+                "cn": [
+                    "LDAP Admins"
+                ],
+                "ou": [
+                    "TestUnit"
+                ],
+                "member": [
+                    "cn=LDAP Admin,ou=TechUsers,ou=TestUnit,dc=some,dc=test,dc=domain,dc=local"
+                ],
+                "entryDN": [
+                    "cn=LDAP Admins,dc=some,dc=test,dc=domain,dc=local"
+                ]
+            }
+        }
+    ]
+}

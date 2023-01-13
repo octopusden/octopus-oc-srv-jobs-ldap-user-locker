@@ -1,0 +1,9 @@
+{
+    "LDAP": {
+        "url": "ldap://localhost:389",
+        "user_cert": "ssl_keys/user.pem",
+        "user_key": "ssl_keys/user.priv.key",
+        "ca_chain": "ssl_keys/ca_chain.pem",
+        "baseDn": "dc=some,dc=test,dc=domain,dc=local"
+    }
+}

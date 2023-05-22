@@ -24,7 +24,11 @@ Example:
     "users": [
         {
             "days_valid": 30, 
-            "time_attributes": ["authTimestamp", "modifyTimeStamp", "createTimestamp"]
+            "time_attributes": ["authTimestamp", "modifyTimeStamp", "createTimestamp"],
+            "lock_notifications": [
+                {"days_before": 30, "mail_template": "default_en.html.template"},
+                {"days_before": 10, "mail_template": "defualt_en.html.template"}
+            ]
         },
         {
             "days_valid": 0, 

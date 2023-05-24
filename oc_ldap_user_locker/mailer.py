@@ -5,15 +5,15 @@ import logging
 import os
 
 class LockMailer:
-    def __init__(self, config, base_path):
+    def __init__(self, config, config_path):
         """
         Basic initialization, configuration checking
         :param dict config: configuration for mailer
         :param str base_path: path to a directory with basic configuration
         """
         self._config = config
-        self._base_path = os.path.abspath(base_path)
-        logging.debug("Base configutaion path: '%s'" % _self._base_path)
+        self._config_path = os.path.abspath(config_path)
+        logging.debug("Base configutaion path: '%s'" % self._config_path)
         self._check_config()
 
     def _check_config(self):
@@ -33,7 +33,7 @@ class LockMailer:
             self._config = dict()
 
         for _key in _smtp_env.keys():
-            _env = _smtp_env.get(_key, '_'.join(["SMTP", _key.upper()]))
+            _env = _smtp_env.get(_key) or '_'.join(["SMTP", _key.upper()])
             _value = self._config.get(_key, os.getenv(_env))
 
             if not _value:

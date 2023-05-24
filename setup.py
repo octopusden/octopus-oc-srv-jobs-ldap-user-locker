@@ -12,6 +12,7 @@ spec = {
     "packages": ["oc_ldap_user_locker"],
     "install_requires": [ 
         'oc-ldap-client >= 1.0.0',
+        'oc-mailer'
       ],
     "python_requires": ">=3.6"
 }

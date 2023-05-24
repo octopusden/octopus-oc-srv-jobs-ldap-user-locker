@@ -44,7 +44,7 @@ class OcLdapUserLocker:
                 "baseDn": "LDAP_BASE_DN"}
 
         for _key in _ldap_env.keys():
-            _value = _ldap_params.get(_key, os.getenv(_ldap_env.get(_key)))
+            _value = _ldap_params.get(_key) or os.getenv(_ldap_env.get(_key))
 
             if not _value:
                 raise ValueError("%s not set", _ldap_env.get(_key))

@@ -23,11 +23,22 @@ Example:
     },
     "users": [
         {
-            "days_valid": 30, 
+            "days_valid": 90, 
             "time_attributes": ["authTimestamp", "modifyTimeStamp", "createTimestamp"],
             "lock_notifications": [
-                {"days_before": 30, "mail_template": "default_en.html.template"},
-                {"days_before": 10, "mail_template": "defualt_en.html.template"}
+                {
+                    "days_before": 30,
+                    "template": {
+                        "file": "default_en.html.template",
+                        "type": "html",
+                        "signature", "lekton_signature.png"}},
+                {
+                    "days_before": 10, 
+                    "template": {
+                        "file": "defualt_en.html.template",
+                        "type": "html",
+                        "signature": "lekton_signature.png'}
+                }
             ]
         },
         {

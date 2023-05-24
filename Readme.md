@@ -31,13 +31,13 @@ Example:
                     "template": {
                         "file": "default_en.html.template",
                         "type": "html",
-                        "signature", "lekton_signature.png"}},
+                        "signature", "signature.png"}},
                 {
                     "days_before": 10, 
                     "template": {
                         "file": "defualt_en.html.template",
                         "type": "html",
-                        "signature": "lekton_signature.png'}
+                        "signature": "signature.png'}
                 }
             ]
         },

@@ -6,7 +6,7 @@ import os
 import ldap3
 from oc_ldap_client.oc_ldap_objects import OcLdapUserCat
 from oc_ldap_client.oc_ldap_objects import OcLdapUserRecord
-from oc_ldap_user_locker.locker import OcLdapUserLocker
+from ..locker import OcLdapUserLocker
 import tempfile
 import json
 import datetime

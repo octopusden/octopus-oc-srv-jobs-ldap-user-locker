@@ -21,6 +21,12 @@ Example:
         "ca_chain": "/home/user/ssl/test/CA.chain.pem",
         "baseDn": "dc=domain,dc=example,dc=local"
     },
+    "SMTP": {
+        "url": "smtp://test.smtp.example.com:25",
+        "user": "TEST_USER",
+        "password": "TEST_PASSWORD",
+        "from": "testuser@test.example.com"
+    },
     "users": [
         {
             "days_valid": 90, 

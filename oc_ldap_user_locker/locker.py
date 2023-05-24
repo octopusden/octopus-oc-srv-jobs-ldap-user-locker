@@ -17,9 +17,48 @@ class OcLdapUserLocker:
 
         config_path = os.path.abspath(config_path)
         logging.info("Configuration path: '%s'" % config_path)
+        self._config_path = config_path
 
         with open(config_path, mode='rt') as _fl_in:
             self.config = json.load(_fl_in)
+
+        self._check_ldap_params()
+
+    def _check_ldap_params(self):
+        """
+        Check LDAP parameters are set
+        update them from environment if not
+        """
+        _ldap_params = self.config.get("LDAP")
+
+        if not _ldap_params:
+            logging.debug("LDAP configuration missing, tring to create it from environment")
+            self.config["LDAP"] = dict()
+            _ldap_params = self.config.get("LDAP")
+
+        _ldap_env = {
+                "url": "LDAP_URL",
+                "user_cert": "LDAP_TLS_CERT",
+                "user_key": "LDAP_TLS_KEY",
+                "ca_chain": "LDAP_TLS_CACERT",
+                "baseDn": "LDAP_BASE_DN"}
+
+        for _key in _ldap_env.keys():
+            _value = _ldap_params.get(_key, os.getenv(_ldap_env.get(_key)))
+
+            if not _value:
+                raise ValueError("%s not set", _ldap_env.get(_key))
+
+            if _key in ["user_cert", "ca_chain", "user_key"]:
+                # this is a path to file, make sure it is absolute
+                if not os.path.isabs(_value):
+                    _value = os.path.join(os.path.dirname(self._config_path), _value)
+
+                if not os.path.exists(_value):
+                    raise FileNotFoundError(_value)
+
+            logging.debug("%s: '%s'" % (_ldap_env.get(_key), _value))
+            self.config["LDAP"][_key] = _value
 
     def _compare_attribute(self, values, match_conf):
         """

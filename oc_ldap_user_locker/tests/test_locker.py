@@ -7,7 +7,7 @@ import ldap3
 from oc_ldap_client.oc_ldap_objects import OcLdapUserCat
 from oc_ldap_client.oc_ldap_objects import OcLdapUserRecord
 from oc_ldap_user_locker.locker import OcLdapUserLocker
-from tempfile import NamedTemporaryFile
+import tempfile
 import json
 import datetime
 
@@ -37,7 +37,7 @@ class OcLdapUserLockerTest(TestCase):
         key_path = os.path.join(self_dir, 'ssl_keys')
 
         # first write configuration in temporary file
-        _config = NamedTemporaryFile(mode='w+t')
+        _config = tempfile.NamedTemporaryFile(mode='w+t')
         _config.write(json.dumps({
             "LDAP": {
                 "url": "ldap://localhost:389",
@@ -447,3 +447,178 @@ class OcLdapUserLockerTest(TestCase):
         usr.set_attribute("mail", "Yet-Another-TEST@EXAMPLE.LOCAL")
         usr.set_attribute("displayName", "Surely_TEST_Match")
         self.assertEqual(_locker._find_valid_conf(usr).get("days_valid"), 30)
+
+    def _close_tempfile(self, tf, delete=False):
+        if not isinstance(tf, str):
+            _fd, _pth = tf
+            os.close(_fd)
+        else:
+            _pth = tf
+
+        if delete:
+            os.remove(_pth)
+
+        return _pth
+
+    def test_check_ldap_params__nothing(self):
+        _locker = self._get_locker()
+
+        # no parameters
+        _locker.config = dict()
+        with self.assertRaises(ValueError):
+            _locker._check_ldap_params()
+
+    def test_check_ldap_params__partial_env(self):
+        _locker = self._get_locker()
+
+        # no parameters but environment set - partially
+        _locker.config = dict()
+        with mock.patch.dict(os.environ, {"LDAP_URL": "ldap://ldap.example.com"}):
+            with self.assertRaises(ValueError):
+                _locker._check_ldap_params()
+
+    def test_check_ldap_params__full_env_files_missing(self):
+        _locker = self._get_locker()
+
+        # no parameter but environment set - full but no files
+        _locker.config = dict()
+        with mock.patch.dict(os.environ, {
+            "LDAP_URL": "ldap://ldap.example.com",
+            "LDAP_TLS_CERT": self._close_tempfile(tempfile.mkstemp(suffix=".pem"), delete=True),
+            "LDAP_TLS_KEY": self._close_tempfile(tempfile.mkstemp(suffix=".pem"), delete=True) ,
+            "LDAP_TLS_CACERT": self._close_tempfile(tempfile.mkstemp(suffix=".pem"), delete=True),
+            "LDAP_BASE_DN": "dc=example,dc=com"
+            }):
+            with self.assertRaises(FileNotFoundError):
+                _locker._check_ldap_params()
+
+    def test_check_ldap_params__full_env_files_present_abs(self):
+        _locker = self._get_locker()
+
+        # no parameter but files all exist - absolute path from env
+        _locker.config = dict()
+        _tempfiles = list(self._close_tempfile(tempfile.mkstemp(suffix=".pem"), delete=False) for __t in range(0, 3))
+        _env_patch = {
+                "LDAP_URL": "ldap://ldap.example.com",
+                "LDAP_TLS_CERT": _tempfiles[0],
+                "LDAP_TLS_KEY": _tempfiles[1] ,
+                "LDAP_TLS_CACERT": _tempfiles[2],
+                "LDAP_BASE_DN": "dc=example,dc=com"}
+
+        with mock.patch.dict(os.environ, _env_patch):
+            _locker._check_ldap_params()
+            self.assertEqual(_locker.config["LDAP"]["url"], _env_patch.get("LDAP_URL"))
+            self.assertEqual(_locker.config["LDAP"]["user_cert"], _env_patch.get("LDAP_TLS_CERT"))
+            self.assertEqual(_locker.config["LDAP"]["user_key"], _env_patch.get("LDAP_TLS_KEY"))
+            self.assertEqual(_locker.config["LDAP"]["ca_chain"], _env_patch.get("LDAP_TLS_CACERT"))
+            self.assertEqual(_locker.config["LDAP"]["baseDn"], _env_patch.get("LDAP_BASE_DN"))
+
+        for _t in _tempfiles:
+            self._close_tempfile(_t, delete=True)
+
+    def test_check_ldap_params__full_env_files_present_rel(self):
+        _locker = self._get_locker()
+
+        # no parameter but files all exist - relative path
+        _locker.config = dict()
+        _tempfiles = list(self._close_tempfile(tempfile.mkstemp(suffix=".pem"), delete=False) for __t in range(0, 3))
+        _confdir = os.path.dirname(_tempfiles[0])
+
+        _subst_tempfiles = list(map(lambda x: x if not x.startswith(_confdir) else os.path.relpath(x, _confdir), 
+            _tempfiles))
+
+        _env_patch = {
+                "LDAP_URL": "ldap://ldap.example.com",
+                "LDAP_TLS_CERT": _subst_tempfiles[0],
+                "LDAP_TLS_KEY": _subst_tempfiles[1] ,
+                "LDAP_TLS_CACERT": _subst_tempfiles[2],
+                "LDAP_BASE_DN": "dc=example,dc=com"}
+
+        with mock.patch.dict(os.environ, _env_patch):
+            _locker._check_ldap_params()
+            _locker._config_path = os.path.join(_confdir, "config.json")
+            #paths have tobe absolute! so we are forced to take it from _tempfiles list
+            self.assertEqual(_locker.config["LDAP"]["url"], _env_patch.get("LDAP_URL"))
+            self.assertEqual(_locker.config["LDAP"]["user_cert"], _tempfiles[0])
+            self.assertEqual(_locker.config["LDAP"]["user_key"], _tempfiles[1])
+            self.assertEqual(_locker.config["LDAP"]["ca_chain"], _tempfiles[2])
+            self.assertEqual(_locker.config["LDAP"]["baseDn"], _env_patch.get("LDAP_BASE_DN"))
+
+        for _t in _tempfiles:
+            self._close_tempfile(_t, delete=True)
+
+    def test_check_ldap_params__partial_env_files_present_mix(self):
+        _locker = self._get_locker()
+
+        # partial parameters set, mixed path
+        _tempfiles = list(self._close_tempfile(tempfile.mkstemp(suffix=".pem"), delete=False) for __t in range(0, 3))
+        _confdir = os.path.dirname(_tempfiles[0])
+
+        _subst_tempfiles = list(map(lambda x: x if not x.startswith(_confdir) else os.path.relpath(x, _confdir), 
+            _tempfiles))
+
+        _env_patch = {
+                "LDAP_URL": "ldap://ldap.example.com",
+                "LDAP_TLS_KEY": _subst_tempfiles[1] ,
+                "LDAP_TLS_CACERT": _subst_tempfiles[2],
+                "LDAP_BASE_DN": "dc=example,dc=com"}
+
+        _conf_patch = {
+                "url": "ldap://another.ldap.example.com:389",
+                "user_cert": _tempfiles[1]} # note on index
+
+        _locker.config = {"LDAP": _conf_patch}
+
+        with mock.patch.dict(os.environ, _env_patch):
+            _locker._check_ldap_params()
+            _locker._config_path = os.path.join(_confdir, "config.json")
+            #paths have tobe absolute! so we are forced to take it from _tempfiles list
+            self.assertEqual(_locker.config["LDAP"]["url"], _conf_patch.get("url"))
+            self.assertEqual(_locker.config["LDAP"]["user_cert"], _tempfiles[1])
+            self.assertEqual(_locker.config["LDAP"]["user_key"], _tempfiles[1])
+            self.assertEqual(_locker.config["LDAP"]["ca_chain"], _tempfiles[2])
+            self.assertEqual(_locker.config["LDAP"]["baseDn"], _env_patch.get("LDAP_BASE_DN"))
+
+        for _t in _tempfiles:
+            self._close_tempfile(_t, delete=True)
+
+    def test_check_ldap_params__full_conf_files_present_mix(self):
+        _locker = self._get_locker()
+        # all parameters set, mixed path
+        # check values are taken from config
+
+        # partial parameters set, mixed path
+        _tempfiles = list(self._close_tempfile(tempfile.mkstemp(suffix=".pem"), delete=False) for __t in range(0, 6))
+        _confdir = os.path.dirname(_tempfiles[0])
+
+        _subst_tempfiles = list(map(lambda x: x if not x.startswith(_confdir) else os.path.relpath(x, _confdir), 
+            _tempfiles))
+
+        _env_patch = {
+                "LDAP_URL": "ldap://ldap.example.com",
+                "LDAP_TLS_KEY": _subst_tempfiles[1] ,
+                "LDAP_TLS_CERT": _tempfiles[0],
+                "LDAP_TLS_CACERT": _subst_tempfiles[2],
+                "LDAP_BASE_DN": "dc=example,dc=com"}
+
+        _conf_patch = {
+                "url": "ldap://another.ldap.example.com:389",
+                "user_cert": _subst_tempfiles[3],
+                "user_key": _tempfiles[4],
+                "ca_chain": _tempfiles[5],
+                "baseDn": "dc=another,dc=example,dc=com"}
+
+        _locker.config = {"LDAP": _conf_patch}
+
+        with mock.patch.dict(os.environ, _env_patch):
+            _locker._check_ldap_params()
+            _locker._config_path = os.path.join(_confdir, "config.json")
+            #paths have tobe absolute! so we are forced to take it from _tempfiles list
+            self.assertEqual(_locker.config["LDAP"]["url"], _conf_patch.get("url"))
+            self.assertEqual(_locker.config["LDAP"]["user_cert"], _tempfiles[3])
+            self.assertEqual(_locker.config["LDAP"]["user_key"], _tempfiles[4])
+            self.assertEqual(_locker.config["LDAP"]["ca_chain"], _tempfiles[5])
+            self.assertEqual(_locker.config["LDAP"]["baseDn"], _conf_patch.get("baseDn"))
+
+        for _t in _tempfiles:
+            self._close_tempfile(_t, delete=True)

@@ -89,3 +89,12 @@ Possible values _comparison_ sub-parameters:
 If _type_ is **regexp** then _Python_ regular expressions are required in _values_ section.
 Non-string attributes comparison is not supported.
 All comparisons are case-insensitive.
+
+## Mail template substitutes supported
+
+    * *cn* - user login
+    * *givenName* - user first name
+    * *sn* - user last name
+    * *displayName* - user display name
+    * *lockDate* - locking date ('YYYY-MM-DD')
+    * *lockDays* - days before locking

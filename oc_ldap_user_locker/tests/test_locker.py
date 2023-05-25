@@ -1,5 +1,5 @@
-from unittest import TestCase
-from unittest import mock
+import unittest
+import unittest.mock
 from .mocks.ldap3 import MockLdapConnection
 from .mocks.randomizer import Randomizer
 import os
@@ -16,13 +16,13 @@ import logging
 logging.getLogger().propagate = False
 logging.getLogger().disabled = True
 
-class OcLdapUserLockerTest(TestCase):
+class OcLdapUserLockerTest(unittest.TestCase):
     def _get_ldap_user_cat(self):
         # return patched OcLdapUserCat
         self_dir = os.path.dirname(os.path.abspath(__file__))
         key_path = os.path.join(self_dir, 'ssl_keys')
 
-        with mock.patch('ldap3.Connection', new=MockLdapConnection):
+        with unittest.mock.patch('ldap3.Connection', new=MockLdapConnection):
             ldap_t = OcLdapUserCat(url='ldap://localhost:389', 
                 user_cert=os.path.join(key_path, 'user.pem'),
                 user_key=os.path.join(key_path, 'user.priv.key'),
@@ -48,7 +48,12 @@ class OcLdapUserLockerTest(TestCase):
                 }}))
         _config.flush()
 
-        return OcLdapUserLocker(os.path.abspath(_config.name))
+        _result = OcLdapUserLocker(os.path.abspath(_config.name))
+
+        # to get rid of 'unclosed resource' wraning it is better to close tempfile explicitly
+        _config.close()
+        _result._mailer = unittest.mock.MagicMock()
+        return _result
 
     def test_run(self):
         # put many records and check _process_single_user runs exactly the number of unlocked records stored
@@ -70,12 +75,12 @@ class OcLdapUserLockerTest(TestCase):
 
         # now construct OcLdapUserLocker object
         _locker = self._get_locker()
-        _locker._process_single_user = mock.MagicMock()
+        _locker._process_single_user = unittest.mock.MagicMock()
 
         def _cat_ret(*args, **kwargs):
             return ldap_t
 
-        with mock.patch('oc_ldap_user_locker.locker.OcLdapUserCat', new=_cat_ret):
+        with unittest.mock.patch('oc_ldap_user_locker.locker.OcLdapUserCat', new=_cat_ret):
             _locker.run()
 
         self.assertEqual(_locker._process_single_user.call_count, len(list_dns))
@@ -95,8 +100,8 @@ class OcLdapUserLockerTest(TestCase):
 
         # now get the locker, mock called functions and do asserts
         _locker = self._get_locker()
-        _locker._find_valid_conf = mock.MagicMock(return_value=None)
-        _locker._get_account_lock_date = mock.MagicMock()
+        _locker._find_valid_conf = unittest.mock.MagicMock(return_value=None)
+        _locker._get_account_lock_date = unittest.mock.MagicMock()
 
         _locker._process_single_user(ldap_t, usr.dn)
         _locker._find_valid_conf.assert_called_once()
@@ -117,9 +122,9 @@ class OcLdapUserLockerTest(TestCase):
         # now get the locker, mock called functions and do asserts
         _locker = self._get_locker()
         _conf = {'days_valid': 0, 'time_attributes': ['modifyTimeStamp']}
-        _locker._find_valid_conf = mock.MagicMock(return_value=_conf)
+        _locker._find_valid_conf = unittest.mock.MagicMock(return_value=_conf)
         _lock_date = datetime.datetime.now() - datetime.timedelta(days=rnd.random_number(2, 4))
-        _locker._get_account_lock_date = mock.MagicMock(return_value=_lock_date)
+        _locker._get_account_lock_date = unittest.mock.MagicMock(return_value=_lock_date)
 
         _locker._process_single_user(ldap_t, usr.dn)
         _locker._find_valid_conf.assert_called_once()
@@ -141,9 +146,9 @@ class OcLdapUserLockerTest(TestCase):
         # now get the locker, mock called functions and do asserts
         _locker = self._get_locker()
         _conf = {'days_valid': 30, 'time_attributes': ['modifyTimeStamp', 'createTimeStamp']}
-        _locker._find_valid_conf = mock.MagicMock(return_value=_conf)
+        _locker._find_valid_conf = unittest.mock.MagicMock(return_value=_conf)
         _lock_date = datetime.datetime.now() + datetime.timedelta(days=rnd.random_number(37, 53))
-        _locker._get_account_lock_date = mock.MagicMock(return_value=_lock_date)
+        _locker._get_account_lock_date = unittest.mock.MagicMock(return_value=_lock_date)
 
         _locker._process_single_user(ldap_t, usr.dn)
         _locker._find_valid_conf.assert_called_once()
@@ -523,7 +528,7 @@ class OcLdapUserLockerTest(TestCase):
 
         # no parameters but environment set - partially
         _locker.config = dict()
-        with mock.patch.dict(os.environ, {"LDAP_URL": "ldap://ldap.example.com"}):
+        with unittest.mock.patch.dict(os.environ, {"LDAP_URL": "ldap://ldap.example.com"}):
             with self.assertRaises(ValueError):
                 _locker._check_ldap_params()
 
@@ -532,7 +537,7 @@ class OcLdapUserLockerTest(TestCase):
 
         # no parameter but environment set - full but no files
         _locker.config = dict()
-        with mock.patch.dict(os.environ, {
+        with unittest.mock.patch.dict(os.environ, {
             "LDAP_URL": "ldap://ldap.example.com",
             "LDAP_TLS_CERT": self._close_tempfile(tempfile.mkstemp(suffix=".pem"), delete=True),
             "LDAP_TLS_KEY": self._close_tempfile(tempfile.mkstemp(suffix=".pem"), delete=True) ,
@@ -555,7 +560,7 @@ class OcLdapUserLockerTest(TestCase):
                 "LDAP_TLS_CACERT": _tempfiles[2],
                 "LDAP_BASE_DN": "dc=example,dc=com"}
 
-        with mock.patch.dict(os.environ, _env_patch):
+        with unittest.mock.patch.dict(os.environ, _env_patch):
             _locker._check_ldap_params()
             self.assertEqual(_locker.config["LDAP"]["url"], _env_patch.get("LDAP_URL"))
             self.assertEqual(_locker.config["LDAP"]["user_cert"], _env_patch.get("LDAP_TLS_CERT"))
@@ -584,7 +589,7 @@ class OcLdapUserLockerTest(TestCase):
                 "LDAP_TLS_CACERT": _subst_tempfiles[2],
                 "LDAP_BASE_DN": "dc=example,dc=com"}
 
-        with mock.patch.dict(os.environ, _env_patch):
+        with unittest.mock.patch.dict(os.environ, _env_patch):
             _locker._check_ldap_params()
             _locker._config_path = os.path.join(_confdir, "config.json")
             #paths have tobe absolute! so we are forced to take it from _tempfiles list
@@ -619,7 +624,7 @@ class OcLdapUserLockerTest(TestCase):
 
         _locker.config = {"LDAP": _conf_patch}
 
-        with mock.patch.dict(os.environ, _env_patch):
+        with unittest.mock.patch.dict(os.environ, _env_patch):
             _locker._check_ldap_params()
             _locker._config_path = os.path.join(_confdir, "config.json")
             #paths have tobe absolute! so we are forced to take it from _tempfiles list
@@ -660,7 +665,7 @@ class OcLdapUserLockerTest(TestCase):
 
         _locker.config = {"LDAP": _conf_patch}
 
-        with mock.patch.dict(os.environ, _env_patch):
+        with unittest.mock.patch.dict(os.environ, _env_patch):
             _locker._check_ldap_params()
             _locker._config_path = os.path.join(_confdir, "config.json")
             #paths have tobe absolute! so we are forced to take it from _tempfiles list
@@ -674,3 +679,25 @@ class OcLdapUserLockerTest(TestCase):
             self._close_tempfile(_t, delete=True)
 
     # send e-mail notifications
+    def test_check_mail__no_conf(self):
+        _rnd = Randomizer()
+        _locker = self._get_locker()
+        _usr = OcLdapUserRecord()
+        _usr.set_attribute('cn', _rnd.random_letters(_rnd.random_number(7, 17)))
+        _locker._check_lock_notifications(_usr, dict(), None, None)
+        _locker._mailer.send_notification.assert_not_called()
+
+    def test_check_mail__no_address(self):
+        _rnd = Randomizer()
+        _locker = self._get_locker()
+        _usr = OcLdapUserRecord()
+        _usr.set_attribute('cn', _rnd.random_letters(_rnd.random_number(7, 17)))
+        _locker._check_lock_notifications(_usr, {"lock_notifications": [
+            { "days_before": 1, "template":{ "file": "nonexistent.html.template"}}]}, None, None)
+        _locker._mailer.send_notification.assert_not_called()
+
+    def test_check_mail__no_siutable_conf(self):
+        pass
+
+    def test_check_mail__ok(conf):
+        pass

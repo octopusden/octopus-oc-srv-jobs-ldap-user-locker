@@ -5,6 +5,7 @@ from oc_ldap_client.oc_ldap_objects import OcLdapUserCat, OcLdapUserRecord
 import re
 import datetime
 from copy import copy
+from .mailer import LockMailer
 
 class OcLdapUserLocker:
     def __init__(self, config_path):
@@ -23,6 +24,7 @@ class OcLdapUserLocker:
             self.config = json.load(_fl_in)
 
         self._check_ldap_params()
+        self._mailer = None
 
     def _check_ldap_params(self):
         """
@@ -272,7 +274,41 @@ class OcLdapUserLocker:
         :param datetime.datetime lock_date: date when account will be locked
         :param int days_before_lock: days left for the date when account will be locked
         """
-        pass
+        # if any of argumets absent then we should have an exception.
+        # so do not check
+
+        if not conf.get("lock_notifications"):
+            logging.debug("Notifications are not configured for '%s'" % user_rec.get_attribute('cn'))
+            return
+
+        if not user_rec.get_attribute("mail"):
+            logging.debug("User '%s' nas no mail, nothing to do" % user_rec.get_attribute('cn')) 
+            return
+
+        # if no suitable configuration for 'days_before_lock' - skip
+        _conf = list(filter(lambda x: x.get("days_before") == days_before_lock, conf.get("lock_notifications")))
+
+        if not _conf:
+            #empty list?
+            logging.debug("No notification for '%s' in %d days before lock" %
+                    (user_rec.get('cn'), days_before_lock))
+            return
+        
+        _conf = _conf.pop()
+
+        if not self._mailer:
+            self._mailer = LockMailer(self.config.get("SMTP") or dict(), self._config_path)
+
+        # filter substitutes for mail template
+        _substitutes = dict({_k: user_rec.get_attribute(_k)} for _k in [
+            'cn', 'givenName', 'sn', 'displayName'])
+
+        _sugstitutes.update({
+                "lockDate": lock_date.strftime("%Y-%d-%m"),
+                "lockDays": str(days_before_lock)})
+
+        self._mailer.send_notification(user_rec.get_attribute('mail'), _conf, _substitutes)
+
 
     def _get_days_before_lock(self, lock_date):
         """

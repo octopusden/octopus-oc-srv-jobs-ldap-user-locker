@@ -235,24 +235,68 @@ class OcLdapUserLocker:
         # now check the time attributes specified in the conf and find out the nearest one
         # note that 'tzinfo' is to be discarged because of possible datetime exception while
         #   subtracting them
-        _lock = self._check_lock_conf(_user_rec, _conf['days_valid'], _conf['time_attributes'])
+        _lock_date = self._get_account_lock_date(_user_rec, _conf['days_valid'], _conf['time_attributes'])
 
-        if not _lock:
+        if not _lock_date:
+            # should never happen
+            logging.debug("Account '%s' is not to be locked ever", _user_rec.get_attribute('cn'))
             return
+
+        logging.debug("Account lock date for '%s': '%s'" % (
+            _user_rec.get_attribute('cn'), _lock_date.isoformat(sep=" ")))
+
+        _days_before_lock = self._get_days_before_lock(_lock_date)
+        logging.debug("Days before lock account '%s': %d" % (
+            _user_rec.get_attribute('cn'), _days_before_lock))
+
+        # check lock e-mail notifications
+        self._check_lock_notifications(
+                _user_rec, _conf, lock_date=_lock_date, days_before_lock=_days_before_lock)
+
+        if _days_before_lock > 0:
+            logging.debug("Is not the time to lock '%s', returning" % _user_rec.get_attribute('cn'))
+            return
+
+        logging.info("Locking '%s', days: '%d'" % (
+            _user_rec.get_attribute('cn'), _days_before_lock))
 
         _user_rec.lock()
         ldap_c.put_record(_user_rec)
+       
+    def _check_lock_notifications(self, user_rec, conf, lock_date, days_before_lock):
+        """
+        Check if user is to be notified about account locking
+        Send mail notifications is so
+        :param OcLdapRecord user_rec: user record from LDAP catalogue
+        :param dict conf: configuration to check agianst
+        :param datetime.datetime lock_date: date when account will be locked
+        :param int days_before_lock: days left for the date when account will be locked
+        """
+        pass
 
-    def _check_lock_conf(self, user_rec, days_valid, time_attributes):
+    def _get_days_before_lock(self, lock_date):
         """
         Check if user is to be locked or not
-        :param OcLdapRecord user_rec: record from LDAP
-        :param int days_valid: how many days record is valid
-        :param list time_attributes: list of time attributes to check (strings)
-        :return bool: True if user is to be locked
+        :param datetime.datetime lock_date: the date account should be locked at, without timezone, not None
+        :reurn int: days before lock, negative if 'after' lock
         """
         _today = datetime.datetime.now()
         _today = _today.replace(tzinfo=None)
+        _diff = _today - lock_date
+
+        return (lock_date - _today).days
+
+    def _get_account_lock_date(self, user_rec, days_valid, time_attributes):
+        """
+        Calculate account lock date basing on current 'time_attribute' values
+        :param OcLdapRecord user_rec: record from LDAP
+        :param int days_valid: how many days record is valid
+        :param list time_attributes: list of time attributes to check (strings)
+        :return datetime.datetime: the date and time account should be locked; 'None' means 'never'
+        """
+
+        _result = None
+        _append = datetime.timedelta(days=days_valid)
 
         for _time_attrib in time_attributes:
             # note that list of time attributes is not supported, so assuming it is a datetime.datetime value
@@ -264,17 +308,18 @@ class OcLdapUserLocker:
             if not _time_value:
                 continue
 
-            # if any of attribute is 'less' than 'days' - do not lock an account
+            # appending 'days'
             _time_value = _time_value.replace(tzinfo=None)
-            _diff = _today - _time_value
+            _time_value = _time_value + _append
 
-            if _diff.days < days_valid:
-                logging.info("Not locking: '%s'" % user_rec.get_attribute('cn'))
-                return False
+            # we have to choose the value in the farest future of possibles
+            if not _result or _result < _time_value:
+                _result = _time_value
 
-        logging.info("Locking '%s'" % user_rec.get_attribute('cn'))
+        logging.debug("Locking date for '%s': '%s'" % (user_rec.get_attribute('cn'),
+            'None' if not _result else _result.isoformat(sep=' ')))
 
-        return True
+        return _result
 
     def run(self):
         """

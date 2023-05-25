@@ -96,11 +96,11 @@ class OcLdapUserLockerTest(TestCase):
         # now get the locker, mock called functions and do asserts
         _locker = self._get_locker()
         _locker._find_valid_conf = mock.MagicMock(return_value=None)
-        _locker._check_lock_conf = mock.MagicMock()
+        _locker._get_account_lock_date = mock.MagicMock()
 
         _locker._process_single_user(ldap_t, usr.dn)
         _locker._find_valid_conf.assert_called_once()
-        _locker._check_lock_conf.assert_not_called()
+        _locker._get_account_lock_date.assert_not_called()
         _usr_modified = ldap_t.get_record(usr.dn, OcLdapUserRecord)
         self.assertIsNone(_usr_modified.is_locked)
 
@@ -118,11 +118,12 @@ class OcLdapUserLockerTest(TestCase):
         _locker = self._get_locker()
         _conf = {'days_valid': 0, 'time_attributes': ['modifyTimeStamp']}
         _locker._find_valid_conf = mock.MagicMock(return_value=_conf)
-        _locker._check_lock_conf = mock.MagicMock(return_value=True)
+        _lock_date = datetime.datetime.now() - datetime.timedelta(days=rnd.random_number(2, 4))
+        _locker._get_account_lock_date = mock.MagicMock(return_value=_lock_date)
 
         _locker._process_single_user(ldap_t, usr.dn)
         _locker._find_valid_conf.assert_called_once()
-        _locker._check_lock_conf.assert_called_once()
+        _locker._get_account_lock_date.assert_called_once()
         _usr_modified = ldap_t.get_record(usr.dn, OcLdapUserRecord)
         self.assertIsNotNone(_usr_modified.is_locked)
         self.assertEqual(_usr_modified.is_locked, '000001010000Z') 
@@ -141,16 +142,19 @@ class OcLdapUserLockerTest(TestCase):
         _locker = self._get_locker()
         _conf = {'days_valid': 30, 'time_attributes': ['modifyTimeStamp', 'createTimeStamp']}
         _locker._find_valid_conf = mock.MagicMock(return_value=_conf)
-        _locker._check_lock_conf = mock.MagicMock(return_value=False)
+        _lock_date = datetime.datetime.now() + datetime.timedelta(days=rnd.random_number(37, 53))
+        _locker._get_account_lock_date = mock.MagicMock(return_value=_lock_date)
 
         _locker._process_single_user(ldap_t, usr.dn)
         _locker._find_valid_conf.assert_called_once()
-        _locker._check_lock_conf.assert_called_once()
+        _locker._get_account_lock_date.assert_called_once()
         _usr_modified = ldap_t.get_record(usr.dn, OcLdapUserRecord)
         self.assertIsNone(_usr_modified.is_locked)
 
-    ## check_lock_conf
-    def test_check_lock_conf__no_time_attributes(self):
+    ## get_account_lock_date
+    ## accuracy is 'days', so it is possible to assert with 'get_days_before_lock'
+    ## which is unit-tested separately
+    def test_get_account_lock_date__no_time_attributes(self):
         # this case user should raise an error if time attributes is None
         # or lock user if it is an empty list
         rnd = Randomizer()
@@ -165,11 +169,11 @@ class OcLdapUserLockerTest(TestCase):
 
         # 'None'
         with self.assertRaises(TypeError):
-            _locker._check_lock_conf(usr, rnd.random_number(30, 90), None)
+            _locker._get_account_lock_date(usr, rnd.random_number(30, 90), None)
 
-        self.assertTrue( _locker._check_lock_conf(usr, rnd.random_number(30, 90), list()))
+        self.assertIsNone( _locker._get_account_lock_date(usr, rnd.random_number(30, 90), list()))
 
-    def test_check_lock_conf__one_attribute_lock(self):
+    def test_get_account_lock_date__one_attribute_lock(self):
         # should be locked if one single attribute is older than days specified
         # and not locked otherwise
         rnd = Randomizer()
@@ -186,17 +190,22 @@ class OcLdapUserLockerTest(TestCase):
         # second one is to be ignored
         usr.set_attribute('authTimeStamp', _now_t - datetime.timedelta(days=30))
         usr.set_attribute('modifyTimeStamp', _now_t - datetime.timedelta(days=10))
-        self.assertTrue(_locker._check_lock_conf(usr, 15, ['authTimeStamp']))
+        # auth was 30 days before, and valid is 15 days: diff is 15 days + 1 since a little time has gone
+        self.assertEqual(0-(30-(15-1)), 
+                _locker._get_days_before_lock(_locker._get_account_lock_date(usr, 15, ['authTimeStamp'])))
 
         # vice-versa
         usr.set_attribute('authTimeStamp', _now_t - datetime.timedelta(days=10))
         usr.set_attribute('modifyTimeStamp', _now_t - datetime.timedelta(days=30))
-        self.assertFalse(_locker._check_lock_conf(usr, 15, ['authTimeStamp']))
+        # auth was 10 days before, valid 15 days: should be 5 days (-1)
+        self.assertEqual(0-(10-(15-1)), 
+                _locker._get_days_before_lock(_locker._get_account_lock_date(usr, 15, ['authTimeStamp'])))
 
         # attribute is equal
-        self.assertTrue(_locker._check_lock_conf(usr, 10, ['authTimeStamp']))
+        self.assertEqual(0-1, 
+                _locker._get_days_before_lock(_locker._get_account_lock_date(usr, 10, ['authTimeStamp'])))
 
-    def test_check_lock_conf__two_attributes_lock(self):
+    def test_get_account_lock_date__two_attributes_lock(self):
         # See two attributes. If one of them is less than 'days' - do not lock
         rnd = Randomizer()
         _now_t = datetime.datetime.now()
@@ -211,20 +220,61 @@ class OcLdapUserLockerTest(TestCase):
         # set both attributes far away
         usr.set_attribute('authTimeStamp', _now_t - datetime.timedelta(days=30))
         usr.set_attribute('modifyTimeStamp', _now_t - datetime.timedelta(days=20))
-        self.assertTrue(_locker._check_lock_conf(usr, 15, ['authTimeStamp', 'modifyTimeStamp']))
+        # 20 days is less then 30, so check against it
+        self.assertEqual(0-(20-(15-1)), _locker._get_days_before_lock(
+            _locker._get_account_lock_date(usr, 15, ['authTimeStamp', 'modifyTimeStamp'])))
         # one is below
-        self.assertFalse(_locker._check_lock_conf(usr, 25, ['authTimeStamp', 'modifyTimeStamp'])) 
+        self.assertEqual(0-(20-(25-1)), _locker._get_days_before_lock(
+                _locker._get_account_lock_date(usr, 25, ['authTimeStamp', 'modifyTimeStamp'])))
         # both are below
-        self.assertFalse(_locker._check_lock_conf(usr, 35, ['authTimeStamp', 'modifyTimeStamp'])) 
+        self.assertEqual(0-(20-(35-1)), _locker._get_days_before_lock(
+                _locker._get_account_lock_date(usr, 35, ['authTimeStamp', 'modifyTimeStamp'])))
 
         # both are above
         usr.set_attribute('authTimeStamp', _now_t - datetime.timedelta(days=10))
         usr.set_attribute('modifyTimeStamp', _now_t - datetime.timedelta(days=5))
-        self.assertFalse(_locker._check_lock_conf(usr, 15, ['authTimeStamp', 'modifyTimeStamp']))
+        self.assertEqual(0-(5-(15-1)), _locker._get_days_before_lock(
+                _locker._get_account_lock_date(usr, 15, ['authTimeStamp', 'modifyTimeStamp'])))
         # one is equal, second is above
-        self.assertFalse(_locker._check_lock_conf(usr, 10, ['authTimeStamp', 'modifyTimeStamp']))
+        self.assertEqual(0-(5-(10-1)), _locker._get_days_before_lock(
+                _locker._get_account_lock_date(usr, 10, ['authTimeStamp', 'modifyTimeStamp'])))
         # both are below
-        self.assertTrue(_locker._check_lock_conf(usr, 5, ['authTimeStamp', 'modifyTimeStamp']))
+        self.assertEqual(0-(5-(5-1)), _locker._get_days_before_lock(
+                _locker._get_account_lock_date(usr, 5, ['authTimeStamp', 'modifyTimeStamp'])))
+
+    ## get_days_before_lock
+    def test_get_days_before_lock__none(self):
+        # should raise TypeError
+        with self.assertRaises(TypeError):
+            self._get_locker()._get_days_before_lock(None)
+
+    def test_get_days_before_lock__past(self):
+        # lock date is in the past, should be negative value
+        rnd = Randomizer()
+        _now_t = datetime.datetime.now()
+        _days = rnd.random_number(10,17)
+        _lock_t = _now_t - datetime.timedelta(days=_days)
+        _locker = self._get_locker()
+        # note: append one day sinc a time is gone between '_now_t' and _get_days...
+        self.assertEqual(0 - (_days + 1), _locker._get_days_before_lock(_lock_t))
+
+    def test_get_days_before_lock__future(self):
+        # lock date is in the future
+        rnd = Randomizer()
+        _now_t = datetime.datetime.now()
+        _days = rnd.random_number(10,17)
+        _lock_t = _now_t + datetime.timedelta(days=_days)
+        _locker = self._get_locker()
+        # note: subtract one day sinc a time is gone between '_now_t' and _get_days...
+        self.assertEqual(_days - 1, _locker._get_days_before_lock(_lock_t))
+
+    def test_get_days_before_lock__now(self):
+        # equal
+        rnd = Randomizer()
+        _now_t = datetime.datetime.now()
+        _lock_t = _now_t + datetime.timedelta(seconds=rnd.random_number(10,17))
+        _locker = self._get_locker()
+        self.assertEqual(0, _locker._get_days_before_lock(_lock_t))
 
     ## find_valid_conf
     # NOTE: tests for 'find_valid_conf' also tests 'check_user_conf' and 'compare_attribute'
@@ -622,3 +672,5 @@ class OcLdapUserLockerTest(TestCase):
 
         for _t in _tempfiles:
             self._close_tempfile(_t, delete=True)
+
+    # send e-mail notifications

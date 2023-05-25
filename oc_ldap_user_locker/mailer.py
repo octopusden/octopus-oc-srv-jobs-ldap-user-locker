@@ -40,4 +40,4 @@ class LockMailer:
                 raise ValueError("%s not set", _env)
 
             logging.debug("%s: '%s'" % (_env, _value))
-            self.config[_key] = _value
+            self._config[_key] = _value

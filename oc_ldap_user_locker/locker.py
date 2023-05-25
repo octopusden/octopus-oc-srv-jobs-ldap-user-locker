@@ -291,7 +291,7 @@ class OcLdapUserLocker:
         if not _conf:
             #empty list?
             logging.debug("No notification for '%s' in %d days before lock" %
-                    (user_rec.get('cn'), days_before_lock))
+                    (user_rec.get_attribute('cn'), days_before_lock))
             return
         
         _conf = _conf.pop()
@@ -300,14 +300,14 @@ class OcLdapUserLocker:
             self._mailer = LockMailer(self.config.get("SMTP") or dict(), self._config_path)
 
         # filter substitutes for mail template
-        _substitutes = dict({_k: user_rec.get_attribute(_k)} for _k in [
+        _substitutes = dict((_k, user_rec.get_attribute(_k)) for _k in [
             'cn', 'givenName', 'sn', 'displayName'])
 
-        _sugstitutes.update({
+        _substitutes.update({
                 "lockDate": lock_date.strftime("%Y-%d-%m"),
                 "lockDays": str(days_before_lock)})
 
-        self._mailer.send_notification(user_rec.get_attribute('mail'), _conf, _substitutes)
+        self._mailer.send_notification(user_rec.get_attribute('mail'), _conf.get("template"), _substitutes)
 
 
     def _get_days_before_lock(self, lock_date):

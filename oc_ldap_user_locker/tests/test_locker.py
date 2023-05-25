@@ -693,11 +693,40 @@ class OcLdapUserLockerTest(unittest.TestCase):
         _usr = OcLdapUserRecord()
         _usr.set_attribute('cn', _rnd.random_letters(_rnd.random_number(7, 17)))
         _locker._check_lock_notifications(_usr, {"lock_notifications": [
-            { "days_before": 1, "template":{ "file": "nonexistent.html.template"}}]}, None, None)
+            { "days_before": 1, "template": {"file": "nonexistent.html.template"}}]}, None, None)
         _locker._mailer.send_notification.assert_not_called()
 
     def test_check_mail__no_siutable_conf(self):
-        pass
+        _rnd = Randomizer()
+        _locker = self._get_locker()
+        _usr = OcLdapUserRecord()
+        _usr.set_attribute('cn', _rnd.random_letters(_rnd.random_number(7, 17)))
+        _usr.set_attribute('mail', _rnd.random_email())
+        _locker._check_lock_notifications(_usr, {"lock_notifications": [
+            { "days_before": 1, "template": {"file": "nonexistent.html.template"}}]}, None, 3)
+        _locker._mailer.send_notification.assert_not_called()
 
-    def test_check_mail__ok(conf):
-        pass
+    def test_check_mail__ok(self):
+        _rnd = Randomizer()
+        _locker = self._get_locker()
+        _usr = OcLdapUserRecord()
+        _usr.set_attribute('cn', _rnd.random_letters(_rnd.random_number(7, 17)))
+        _usr.set_attribute('mail', _rnd.random_email())
+        _usr.set_attribute('givenName', _rnd.random_letters(_rnd.random_number(3, 7)))
+        _usr.set_attribute('sn', _rnd.random_letters(_rnd.random_number(2, 10)))
+        _usr.set_attribute('displayName', " ".join([
+            _usr.get_attribute('givenName'), _usr.get_attribute('sn')]))
+        _days_to_lock = 3
+        _lock_date = datetime.datetime.now() + datetime.timedelta(days=3)
+        _locker._check_lock_notifications(_usr, {"lock_notifications": [
+            { "days_before": 3, "template": {"file": "nonexistent.html.template"}}]}, _lock_date, _days_to_lock)
+
+        # make expected substitutes for call mailer
+        _substitutes_expected = dict((_k, _usr.get_attribute(_k)) for _k in [
+            'cn', 'givenName', 'sn', 'displayName'])
+        _substitutes_expected.update({
+                "lockDate": _lock_date.strftime("%Y-%d-%m"),
+                "lockDays": str(_days_to_lock)})
+
+        _locker._mailer.send_notification.assert_called_once_with(
+                _usr.get_attribute('mail'), {"file": "nonexistent.html.template"}, _substitutes_expected)

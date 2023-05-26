@@ -101,14 +101,40 @@ class MailerTestCase(unittest.TestCase):
         _config_pth = "/tmp"
         _mailer = LockMailer(_config, _config_pth)
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(TypeError):
             _mailer._check_template_configuration(None)
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(KeyError):
             _mailer._check_template_configuration(dict())
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(KeyError):
             _mailer._check_template_configuration({"type":"plain"})
+
+    def test_check_templater_conf__ok(self):
+        _config = {
+                "url": "smtp://another.smtp.example.com:625",
+                "user": "another_test_user",
+                "password": "test_user_password",
+                "from": "another_test@example.com"}
+        _config_pth = "/tmp"
+        _mailer = LockMailer(_config, _config_pth)
+
+        # relative path
+        _expected = {
+                "file": os.path.join(_config_pth, "bla-bla-bla.txt.template"),
+                "type": "plain"}
+        self.assertEqual(_expected, _mailer._check_template_configuration({
+            "file": "bla-bla-bla.txt.template"}))
+
+        # mixed path with signature
+        _expected = {
+                "file": os.path.join(_config_pth, "bla-bla-bla.html.template"),
+                "type": "html",
+                "signature": os.path.join(os.path.sep, "bla-bla-bla.png")}
+        self.assertEqual(_expected, _mailer._check_template_configuration({
+            "file": "bla-bla-bla.html.template",
+            "type": "html",
+            "signature": os.path.join(os.path.sep, "bla-bla-bla.png")}))
 
     def test_send_notif__invalid_mail(self):
         _config = {

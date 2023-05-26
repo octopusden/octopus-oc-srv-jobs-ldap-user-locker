@@ -64,13 +64,14 @@ class LockMailer:
         :param dict template_conf: template configuration
         :return dict: adjusted template configuration
         """
-        if any([not template_conf, not isinstance(template_conf, dict)]):
-            raise ValueError("Invalid template configuration. At least 'file' is required")
+        if not isinstance(template_conf, dict):
+            raise TypeError("Dictinary required, %s provided" % type(template_conf))
 
-        if 'file' not in template_conf.keys():
-            raise ValueError("Invalid template configuration. At least 'file' is required")
+        template_conf["file"] = self._check_path(template_conf["file"])
+        template_conf["type"] = template_conf.get("type") or "plain"
 
-        print("fuckoff")
+        if "signature" in template_conf.keys():
+            template_conf["signature"] = self._check_path(template_conf["signature"])
 
         return template_conf
 

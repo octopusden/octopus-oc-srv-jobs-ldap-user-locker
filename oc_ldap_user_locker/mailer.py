@@ -41,3 +41,48 @@ class LockMailer:
 
             logging.debug("%s: '%s'" % (_env, _value))
             self._config[_key] = _value
+
+    def _check_path(self, path):
+        """
+        Check if path provided is absolute.
+        Make it absolute if not.
+        Do not check for file existence since it will be raised while try to open
+        :param str path: path to check
+        :return str: adjusted path
+        """
+        if not path:
+            raise ValueError("Empty or incompatible path provided")
+
+        if not os.path.isabs(path):
+            path = os.path.join(self._config_path, path)
+
+        return path
+
+    def _check_template_configuration(self, template_conf):
+        """
+        Check template configuration
+        :param dict template_conf: template configuration
+        :return dict: adjusted template configuration
+        """
+        if any([not template_conf, not isinstance(template_conf, dict)]):
+            raise ValueError("Invalid template configuration. At least 'file' is required")
+
+        if 'file' not in template_conf.keys():
+            raise ValueError("Invalid template configuration. At least 'file' is required")
+
+        print("fuckoff")
+
+        return template_conf
+
+    def send_notification(self, mail_to, template_conf, template_substitutes):
+        """
+        Send mail notification as specified in the arguments
+        :param str mail_to: e-mail address to send
+        :param dict template_conf: template configuration
+        :param dict template_substitutes: template substitutes
+        """
+
+        if not mail_to or not '@' in mail_to:
+            raise ValueError("Invalid e-mail address: '%s'" % mail_to)
+
+        template_conf = self._check_template_configuration(template_conf)

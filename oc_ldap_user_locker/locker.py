@@ -56,9 +56,6 @@ class OcLdapUserLocker:
                 if not os.path.isabs(_value):
                     _value = os.path.join(os.path.dirname(self._config_path), _value)
 
-                if not os.path.exists(_value):
-                    raise FileNotFoundError(_value)
-
             logging.debug("%s: '%s'" % (_ldap_env.get(_key), _value))
             self.config["LDAP"][_key] = _value
 

@@ -532,21 +532,6 @@ class OcLdapUserLockerTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 _locker._check_ldap_params()
 
-    def test_check_ldap_params__full_env_files_missing(self):
-        _locker = self._get_locker()
-
-        # no parameter but environment set - full but no files
-        _locker.config = dict()
-        with unittest.mock.patch.dict(os.environ, {
-            "LDAP_URL": "ldap://ldap.example.com",
-            "LDAP_TLS_CERT": self._close_tempfile(tempfile.mkstemp(suffix=".pem"), delete=True),
-            "LDAP_TLS_KEY": self._close_tempfile(tempfile.mkstemp(suffix=".pem"), delete=True) ,
-            "LDAP_TLS_CACERT": self._close_tempfile(tempfile.mkstemp(suffix=".pem"), delete=True),
-            "LDAP_BASE_DN": "dc=example,dc=com"
-            }):
-            with self.assertRaises(FileNotFoundError):
-                _locker._check_ldap_params()
-
     def test_check_ldap_params__full_env_files_present_abs(self):
         _locker = self._get_locker()
 

@@ -1,6 +1,8 @@
 import unittest
 import unittest.mock
 from ..mailer import LockMailer
+import os
+import tempfile
 
 class MailerTestCase(unittest.TestCase):
     def test_check_config__none(self):
@@ -68,3 +70,63 @@ class MailerTestCase(unittest.TestCase):
             self.assertEqual(_mailer._config.get("url"), _config.get("url"))
             self.assertEqual(_mailer._config.get("user"), _config.get("user"))
             self.assertEqual(_mailer._config.get("from"), _config.get("from"))
+
+    def test_check_path(self):
+        _config = {
+                "url": "smtp://another.smtp.example.com:625",
+                "user": "another_test_user",
+                "password": "test_user_password",
+                "from": "another_test@example.com"}
+        _config_pth = "/tmp"
+        _mailer = LockMailer(_config, _config_pth)
+
+        with self.assertRaises(ValueError):
+            _mailer._check_path(None)
+
+        with self.assertRaises(ValueError):
+            _mailer._check_path("")
+
+        self.assertEqual(os.path.join(_config_pth, "bla", "bla", "bla.txt"), 
+                _mailer._check_path(os.path.join("bla", "bla", "bla.txt")))
+
+        self.assertEqual(os.path.join(os.path.sep, "bla", "bla", "bla.txt"), 
+                _mailer._check_path(os.path.join(os.path.sep, "bla", "bla", "bla.txt")))
+
+    def test_check_template_conf__no_file(self):
+        _config = {
+                "url": "smtp://another.smtp.example.com:625",
+                "user": "another_test_user",
+                "password": "test_user_password",
+                "from": "another_test@example.com"}
+        _config_pth = "/tmp"
+        _mailer = LockMailer(_config, _config_pth)
+
+        with self.assertRaises(ValueError):
+            _mailer._check_template_configuration(None)
+
+        with self.assertRaises(ValueError):
+            _mailer._check_template_configuration(dict())
+
+        with self.assertRaises(ValueError):
+            _mailer._check_template_configuration({"type":"plain"})
+
+    def test_send_notif__invalid_mail(self):
+        _config = {
+                "url": "smtp://another.smtp.example.com:625",
+                "user": "another_test_user",
+                "password": "test_user_password",
+                "from": "another_test@example.com"}
+        _config_pth = "/tmp"
+        _mailer = LockMailer(_config, _config_pth)
+
+        with self.assertRaises(ValueError):
+            _mailer.send_notification(None, None, None)
+
+        with self.assertRaises(ValueError):
+            _mailer.send_notification("", None, None)
+
+        with self.assertRaises(ValueError):
+            _mailer.send_notification("invalidmail", None, None)
+
+    def test_send_notif__invalid_template(self):
+        pass

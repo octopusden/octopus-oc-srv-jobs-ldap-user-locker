@@ -3,6 +3,10 @@ from copy import deepcopy
 from oc_mailer import Mailer
 import logging
 import os
+import smtplib
+import urllib.parse as urlparse
+import re
+import posixpath
 
 class LockMailer:
     def __init__(self, config, config_path):
@@ -75,6 +79,35 @@ class LockMailer:
 
         return template_conf
 
+    def _get_smtp_client(self):
+        """
+        Return SMTP connection instance
+        """
+        _url = self._config.get("url")
+
+        if not re.match("(.*?:)?" + posixpath.sep + posixpath.sep, _url):
+            logging.warning("No schema specified at SMTP_URL: '%s', please start with 'smtp://'" % _url)
+            _url = "smtp:" + posixpath.sep + posixpath.sep + _url
+
+        _parse_result = urlparse.urlparse(_url)
+        _host = _parse_result.hostname
+        _port = _parse_result.port
+
+        if not _host:
+            raise ValueError("Invalid SMTP_URL: host not parsed")
+
+        logging.debug("Parsing SMTP_URL, host='%s'" % _host)
+
+        if not _port:
+            logging.debug("No port specified, assiging default")
+            _port = 25
+
+        logging.debug("Port: %d" % _port)
+
+        _client = smtplib.SMTP(host=_host, port=_port)
+        _client.login(self._config.get("user"), self._config.get("password"))
+        return _client        
+
     def send_notification(self, mail_to, template_conf, template_substitutes):
         """
         Send mail notification as specified in the arguments
@@ -87,3 +120,4 @@ class LockMailer:
             raise ValueError("Invalid e-mail address: '%s'" % mail_to)
 
         template_conf = self._check_template_configuration(template_conf)
+        _smtp = self._get_smtp_client()

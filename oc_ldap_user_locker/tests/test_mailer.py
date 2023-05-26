@@ -4,6 +4,11 @@ from ..mailer import LockMailer
 import os
 import tempfile
 
+# remove unnecessary log output
+import logging
+logging.getLogger().propagate = False
+logging.getLogger().disabled = True
+
 class MailerTestCase(unittest.TestCase):
     def test_check_config__none(self):
         _config = dict()
@@ -136,6 +141,50 @@ class MailerTestCase(unittest.TestCase):
             "type": "html",
             "signature": os.path.join(os.path.sep, "bla-bla-bla.png")}))
 
+    def test_get_smtp_client__invalid_url(self):
+        _config = {
+                "url": "smtp://",
+                "user": "another_test_user",
+                "password": "test_user_password",
+                "from": "another_test@example.com"}
+        _config_pth = "/tmp"
+        _mailer = LockMailer(_config, _config_pth)
+
+        with self.assertRaises(ValueError):
+            _mailer._get_smtp_client()
+
+    def test_get_smtp_client__default_port(self):
+        _config = {
+                "url": "another.smtp.example.com",
+                "user": "another_test_user",
+                "password": "test_user_password",
+                "from": "another_test@example.com"}
+        _config_pth = "/tmp"
+        _mailer = LockMailer(_config, _config_pth)
+        _smtp = unittest.mock.MagicMock()
+        _smtp.login = unittest.mock.MagicMock()
+
+        with unittest.mock.patch("oc_ldap_user_locker.mailer.smtplib.SMTP", return_value=_smtp) as _smtp_i:
+            self.assertIsNotNone(_mailer._get_smtp_client())
+            _smtp_i.assert_called_once_with(host="another.smtp.example.com", port=25)
+            _smtp.login.assert_called_once_with("another_test_user", "test_user_password")
+
+    def test_get_smtp_client__ok(self):
+        _config = {
+                "url": "smtp://another.smtp.example.com:625",
+                "user": "another_test_user",
+                "password": "test_user_password",
+                "from": "another_test@example.com"}
+        _config_pth = "/tmp"
+        _mailer = LockMailer(_config, _config_pth)
+        _smtp = unittest.mock.MagicMock()
+        _smtp.login = unittest.mock.MagicMock()
+
+        with unittest.mock.patch("oc_ldap_user_locker.mailer.smtplib.SMTP", return_value=_smtp) as _smtp_i:
+            self.assertIsNotNone(_mailer._get_smtp_client())
+            _smtp_i.assert_called_once_with(host="another.smtp.example.com", port=625)
+            _smtp.login.assert_called_once_with("another_test_user", "test_user_password")
+
     def test_send_notif__invalid_mail(self):
         _config = {
                 "url": "smtp://another.smtp.example.com:625",
@@ -154,5 +203,11 @@ class MailerTestCase(unittest.TestCase):
         with self.assertRaises(ValueError):
             _mailer.send_notification("invalidmail", None, None)
 
-    def test_send_notif__invalid_template(self):
+    def test_send_notif__template_file_missing(self):
+        pass
+
+    def test_send_notif__signature_file_missing(self):
+        pass
+
+    def test_send_notif__ok(self):
         pass

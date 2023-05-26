@@ -246,4 +246,42 @@ class MailerTestCase(unittest.TestCase):
         _tpl.close()
 
     def test_send_notif__ok(self):
-        pass
+        _config = {
+                "url": "smtp://another.smtp.example.com:625",
+                "user": "another_test_user",
+                "password": "test_user_password",
+                "from": "another_test@example.com"}
+        _config_pth = "/tmp"
+        _mailer = LockMailer(_config, _config_pth)
+        _template_file = tempfile.NamedTemporaryFile(mode='w+t')
+        _template_path = os.path.abspath(_template_file.name)
+        _signature_file = tempfile.NamedTemporaryFile()
+        _signature_path = os.path.abspath(_signature_file.name)
+        _template_file.write("<p>the ${html} template</p>")
+        _template_file.flush()
+        _signature_file.write(b'\x05')
+        _signature_file.flush()
+        self.assertTrue(os.path.exists(_template_path))
+        self.assertTrue(os.path.exists(_signature_path))
+
+        _template_conf = {
+                "file": _template_path,
+                "type": "html",
+                "signature": _signature_path,
+                "subject": "The Test Subject"}
+
+        _email = Randomizer().random_email()
+        _smtp = unittest.mock.MagicMock()
+        _sub_mailer = unittest.mock.MagicMock()
+        _mailer._get_smtp_client = unittest.mock.MagicMock(return_value=_smtp)
+
+        with unittest.mock.patch("oc_ldap_user_locker.mailer.Mailer", return_value=_sub_mailer) as _smmock:
+            _mailer.send_notification(_email, _template_conf, {"html": "real"})
+            _smmock.assert_called_once_with(_smtp, 
+                    'another_test@example.com', 'html', template='<p>the ${html} template</p>', signature_image=b'\x05')
+
+        _mailer._get_smtp_client.assert_called_once()
+        # aware for substitutes arguments conversion in **kwargs style, not a "dict"
+        _sub_mailer.send_email.assert_called_once_with(_email, "The Test Subject", split=False, html="real")
+        _signature_file.close()
+        _template_file.close()

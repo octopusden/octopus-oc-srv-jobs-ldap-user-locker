@@ -25,7 +25,8 @@ Example:
         "url": "smtp://test.smtp.example.com:25",
         "user": "TEST_USER",
         "password": "TEST_PASSWORD",
-        "from": "testuser@test.example.com"
+        "from": "testuser@test.example.com",
+        "subject": "default e-mail subject"
     },
     "users": [
         {
@@ -37,7 +38,8 @@ Example:
                     "template": {
                         "file": "default_en.html.template",
                         "type": "html",
-                        "signature", "signature.png"}},
+                        "signature", "signature.png"},
+                        "subject": "e-mail subject"},
                 {
                     "days_before": 10, 
                     "template": {
@@ -89,6 +91,11 @@ Possible values _comparison_ sub-parameters:
 If _type_ is **regexp** then _Python_ regular expressions are required in _values_ section.
 Non-string attributes comparison is not supported.
 All comparisons are case-insensitive.
+
+### E-mail subject
+    - from notification configuration
+    - from global **SMTP** section if missing in template settings
+    - "Account lock warning" by default if both above missing
 
 ## Mail template substitutes supported
 

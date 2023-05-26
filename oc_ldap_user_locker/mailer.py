@@ -120,4 +120,24 @@ class LockMailer:
             raise ValueError("Invalid e-mail address: '%s'" % mail_to)
 
         template_conf = self._check_template_configuration(template_conf)
+
+        # load all resources
+        _signature = None
+        _template = None
+
+        with open(template_conf.get("file"), mode='rt') as _tpl_in:
+            _template = _tpl_in.read()
+
+        if template_conf.get("signature"):
+            with open(template_conf.get("signature"), mode='rb') as _sg_in:
+                _signature = _sg_in.read()
+
         _smtp = self._get_smtp_client()
+        Mailer(_smtp, 
+                self._config.get("from"),
+                template_conf.get("type"),
+                template=_template,
+                signature_image=_signature).send_email(mail_to,
+                        template_conf.get("subject") or self._config.get("subject") or "Account lock warning",
+                        split=False,
+                        **template_substitutes)

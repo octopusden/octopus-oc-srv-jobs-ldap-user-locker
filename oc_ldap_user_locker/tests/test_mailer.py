@@ -3,6 +3,7 @@ import unittest.mock
 from ..mailer import LockMailer
 import os
 import tempfile
+from .mocks.randomizer import Randomizer
 
 # remove unnecessary log output
 import logging
@@ -204,10 +205,45 @@ class MailerTestCase(unittest.TestCase):
             _mailer.send_notification("invalidmail", None, None)
 
     def test_send_notif__template_file_missing(self):
-        pass
+        _config = {
+                "url": "smtp://another.smtp.example.com:625",
+                "user": "another_test_user",
+                "password": "test_user_password",
+                "from": "another_test@example.com"}
+        _config_pth = "/tmp"
+        _mailer = LockMailer(_config, _config_pth)
+        _t = tempfile.NamedTemporaryFile()
+        _tfn = os.path.abspath(_t.name)
+        _t.close()
+        self.assertFalse(os.path.exists(_tfn))
+        _template_conf = {"file": _tfn}
+
+        with self.assertRaises(FileNotFoundError):
+            _mailer.send_notification(Randomizer().random_email(), _template_conf, dict()) 
 
     def test_send_notif__signature_file_missing(self):
-        pass
+        _config = {
+                "url": "smtp://another.smtp.example.com:625",
+                "user": "another_test_user",
+                "password": "test_user_password",
+                "from": "another_test@example.com"}
+        _config_pth = "/tmp"
+        _mailer = LockMailer(_config, _config_pth)
+        _tpl = tempfile.NamedTemporaryFile(mode='w+t')
+        _tfn = os.path.abspath(_tpl.name)
+        _spl = tempfile.NamedTemporaryFile()
+        _sfn = os.path.abspath(_spl.name)
+        _tpl.write("the template")
+        _tpl.flush()
+        _spl.close()
+        self.assertTrue(os.path.exists(_tfn))
+        self.assertFalse(os.path.exists(_sfn))
+        _template_conf = {"file": _tfn, "type": "html", "signature": _sfn}
+
+        with self.assertRaises(FileNotFoundError):
+            _mailer.send_notification(Randomizer().random_email(), _template_conf, dict()) 
+
+        _tpl.close()
 
     def test_send_notif__ok(self):
         pass

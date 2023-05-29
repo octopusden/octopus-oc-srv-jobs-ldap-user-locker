@@ -275,7 +275,7 @@ class MailerTestCase(unittest.TestCase):
         _sub_mailer = unittest.mock.MagicMock()
         _mailer._get_smtp_client = unittest.mock.MagicMock(return_value=_smtp)
 
-        with unittest.mock.patch("oc_ldap_user_locker.mailer.Mailer", return_value=_sub_mailer) as _smmock:
+        with unittest.mock.patch("oc_ldap_user_locker.mailer.Mailer.Mailer", return_value=_sub_mailer) as _smmock:
             _mailer.send_notification(_email, _template_conf, {"html": "real"})
             _smmock.assert_called_once_with(_smtp, 
                     'another_test@example.com', 'html', template='<p>the ${html} template</p>', signature_image=b'\x05')

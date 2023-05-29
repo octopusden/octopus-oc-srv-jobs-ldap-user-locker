@@ -133,7 +133,7 @@ class LockMailer:
                 _signature = _sg_in.read()
 
         _smtp = self._get_smtp_client()
-        Mailer(_smtp, 
+        Mailer.Mailer(_smtp, 
                 self._config.get("from"),
                 template_conf.get("type"),
                 template=_template,

@@ -282,6 +282,10 @@ class OcLdapUserLocker:
             logging.debug("User '%s' nas no mail, nothing to do" % user_rec.get_attribute('cn')) 
             return
 
+        # if 'days_before_lock' is negative - use zero-value notification since account is to be locked now
+        if days_before_lock < 0:
+            days_before_lock = 0
+
         # if no suitable configuration for 'days_before_lock' - skip
         _conf = list(filter(lambda x: x.get("days_before") == days_before_lock, conf.get("lock_notifications")))
 

@@ -298,7 +298,7 @@ class OcLdapUserLocker:
         _conf = _conf.pop()
 
         if not self._mailer:
-            self._mailer = LockMailer(self.config.get("SMTP") or dict(), self._config_path)
+            self._mailer = LockMailer(self.config.get("SMTP") or dict(), os.path.dirname(self._config_path))
 
         # filter substitutes for mail template
         _substitutes = dict((_k, user_rec.get_attribute(_k)) for _k in [

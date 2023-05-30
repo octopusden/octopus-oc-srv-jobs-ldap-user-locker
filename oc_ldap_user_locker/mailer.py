@@ -125,6 +125,7 @@ class LockMailer:
         _signature = None
         _template = None
 
+        logging.info("Sending message to '%s', template '%s'" % (mail_to, template_conf.get("file")))
         with open(template_conf.get("file"), mode='rt') as _tpl_in:
             _template = _tpl_in.read()
 

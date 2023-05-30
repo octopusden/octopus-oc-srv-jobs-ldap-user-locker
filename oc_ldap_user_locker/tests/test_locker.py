@@ -176,7 +176,7 @@ class OcLdapUserLockerTest(unittest.TestCase):
         with self.assertRaises(TypeError):
             _locker._get_account_lock_date(usr, rnd.random_number(30, 90), None)
 
-        self.assertIsNone( _locker._get_account_lock_date(usr, rnd.random_number(30, 90), list()))
+        self.assertIsNone(_locker._get_account_lock_date(usr, rnd.random_number(30, 90), list()))
 
     def test_get_account_lock_date__one_attribute_lock(self):
         # should be locked if one single attribute is older than days specified

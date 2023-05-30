@@ -321,7 +321,7 @@ class OcLdapUserLocker:
         _today = _today.replace(tzinfo=None)
         _diff = _today - lock_date
 
-        return (lock_date - _today).days
+        return _diff.days
 
     def _get_account_lock_date(self, user_rec, days_valid, time_attributes):
         """

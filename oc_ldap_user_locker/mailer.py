@@ -123,7 +123,7 @@ class LockMailer:
         :param dict template_substitutes: template substitutes
         """
 
-        if not mail_to or not '@' in mail_to:
+        if not mail_to or '@' not in mail_to:
             raise ValueError("Invalid e-mail address: '%s'" % mail_to)
 
         template_conf = self._check_template_configuration(template_conf)

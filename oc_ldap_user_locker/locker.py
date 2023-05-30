@@ -319,7 +319,7 @@ class OcLdapUserLocker:
         """
         _today = datetime.datetime.now()
         _today = _today.replace(tzinfo=None)
-        _diff = _today - lock_date
+        _diff = lock_date - _today
 
         return _diff.days
 

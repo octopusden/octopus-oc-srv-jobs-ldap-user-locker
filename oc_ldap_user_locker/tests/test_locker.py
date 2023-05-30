@@ -541,7 +541,7 @@ class OcLdapUserLockerTest(unittest.TestCase):
         _env_patch = {
                 "LDAP_URL": "ldap://ldap.example.com",
                 "LDAP_TLS_CERT": _tempfiles[0],
-                "LDAP_TLS_KEY": _tempfiles[1] ,
+                "LDAP_TLS_KEY": _tempfiles[1],
                 "LDAP_TLS_CACERT": _tempfiles[2],
                 "LDAP_BASE_DN": "dc=example,dc=com"}
 
@@ -570,7 +570,7 @@ class OcLdapUserLockerTest(unittest.TestCase):
         _env_patch = {
                 "LDAP_URL": "ldap://ldap.example.com",
                 "LDAP_TLS_CERT": _subst_tempfiles[0],
-                "LDAP_TLS_KEY": _subst_tempfiles[1] ,
+                "LDAP_TLS_KEY": _subst_tempfiles[1],
                 "LDAP_TLS_CACERT": _subst_tempfiles[2],
                 "LDAP_BASE_DN": "dc=example,dc=com"}
 
@@ -599,7 +599,7 @@ class OcLdapUserLockerTest(unittest.TestCase):
 
         _env_patch = {
                 "LDAP_URL": "ldap://ldap.example.com",
-                "LDAP_TLS_KEY": _subst_tempfiles[1] ,
+                "LDAP_TLS_KEY": _subst_tempfiles[1],
                 "LDAP_TLS_CACERT": _subst_tempfiles[2],
                 "LDAP_BASE_DN": "dc=example,dc=com"}
 

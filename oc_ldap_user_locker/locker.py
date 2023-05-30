@@ -34,7 +34,7 @@ class OcLdapUserLocker:
         _ldap_params = self.config.get("LDAP")
 
         if not _ldap_params:
-            logging.debug("LDAP configuration missing, tring to create it from environment")
+            logging.debug("LDAP configuration missing, trying to create it from environment")
             self.config["LDAP"] = dict()
             _ldap_params = self.config.get("LDAP")
 

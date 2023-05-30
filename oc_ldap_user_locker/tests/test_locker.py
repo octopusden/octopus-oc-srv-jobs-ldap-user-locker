@@ -95,7 +95,7 @@ class OcLdapUserLockerTest(unittest.TestCase):
 
         # generate test user record
         usr = OcLdapUserRecord()
-        usr.set_attribute('cn', rnd.random_letters(rnd.random_number(10,17)))
+        usr.set_attribute('cn', rnd.random_letters(rnd.random_number(10, 17)))
         usr = ldap_t.put_record(usr)
 
         # now get the locker, mock called functions and do asserts
@@ -116,7 +116,7 @@ class OcLdapUserLockerTest(unittest.TestCase):
 
         # generate test user record
         usr = OcLdapUserRecord()
-        usr.set_attribute('cn', rnd.random_letters(rnd.random_number(10,17)))
+        usr.set_attribute('cn', rnd.random_letters(rnd.random_number(10, 17)))
         usr = ldap_t.put_record(usr)
 
         # now get the locker, mock called functions and do asserts
@@ -140,7 +140,7 @@ class OcLdapUserLockerTest(unittest.TestCase):
 
         # generate test user record
         usr = OcLdapUserRecord()
-        usr.set_attribute('cn', rnd.random_letters(rnd.random_number(10,17)))
+        usr.set_attribute('cn', rnd.random_letters(rnd.random_number(10, 17)))
         usr = ldap_t.put_record(usr)
 
         # now get the locker, mock called functions and do asserts
@@ -166,7 +166,7 @@ class OcLdapUserLockerTest(unittest.TestCase):
 
         # generate test user record
         usr = OcLdapUserRecord()
-        usr.set_attribute('cn', rnd.random_letters(rnd.random_number(10,17)))
+        usr.set_attribute('cn', rnd.random_letters(rnd.random_number(10, 17)))
         usr.set_attribute('authTimeStamp', datetime.datetime.now())
 
         # now get the locker, mock called functions and do asserts
@@ -186,7 +186,7 @@ class OcLdapUserLockerTest(unittest.TestCase):
 
         # generate test user record
         usr = OcLdapUserRecord()
-        usr.set_attribute('cn', rnd.random_letters(rnd.random_number(10,17)))
+        usr.set_attribute('cn', rnd.random_letters(rnd.random_number(10, 17)))
 
         # now get the locker, mock called functions and do asserts
         _locker = self._get_locker()
@@ -217,7 +217,7 @@ class OcLdapUserLockerTest(unittest.TestCase):
 
         # generate test user record
         usr = OcLdapUserRecord()
-        usr.set_attribute('cn', rnd.random_letters(rnd.random_number(10,17)))
+        usr.set_attribute('cn', rnd.random_letters(rnd.random_number(10, 17)))
 
         # now get the locker, mock called functions and do asserts
         _locker = self._get_locker()
@@ -257,7 +257,7 @@ class OcLdapUserLockerTest(unittest.TestCase):
         # lock date is in the past, should be negative value
         rnd = Randomizer()
         _now_t = datetime.datetime.now()
-        _days = rnd.random_number(10,17)
+        _days = rnd.random_number(10, 17)
         _lock_t = _now_t - datetime.timedelta(days=_days)
         _locker = self._get_locker()
         # note: append one day sinc a time is gone between '_now_t' and _get_days...
@@ -267,7 +267,7 @@ class OcLdapUserLockerTest(unittest.TestCase):
         # lock date is in the future
         rnd = Randomizer()
         _now_t = datetime.datetime.now()
-        _days = rnd.random_number(10,17)
+        _days = rnd.random_number(10, 17)
         _lock_t = _now_t + datetime.timedelta(days=_days)
         _locker = self._get_locker()
         # note: subtract one day sinc a time is gone between '_now_t' and _get_days...
@@ -277,7 +277,7 @@ class OcLdapUserLockerTest(unittest.TestCase):
         # equal
         rnd = Randomizer()
         _now_t = datetime.datetime.now()
-        _lock_t = _now_t + datetime.timedelta(seconds=rnd.random_number(10,17))
+        _lock_t = _now_t + datetime.timedelta(seconds=rnd.random_number(10, 17))
         _locker = self._get_locker()
         self.assertEqual(0, _locker._get_days_before_lock(_lock_t))
 
@@ -289,7 +289,7 @@ class OcLdapUserLockerTest(unittest.TestCase):
 
         # generate test user record
         usr = OcLdapUserRecord()
-        usr.set_attribute('cn', rnd.random_letters(rnd.random_number(10,17)))
+        usr.set_attribute('cn', rnd.random_letters(rnd.random_number(10, 17)))
 
         # now get the locker, mock called functions and do asserts
         _locker = self._get_locker()
@@ -333,7 +333,7 @@ class OcLdapUserLockerTest(unittest.TestCase):
 
         # generate test user record
         usr = OcLdapUserRecord()
-        usr.set_attribute('cn', rnd.random_letters(rnd.random_number(10,17)))
+        usr.set_attribute('cn', rnd.random_letters(rnd.random_number(10, 17)))
 
         # now get the locker, mock called functions and do asserts
         _locker = self._get_locker()
@@ -371,7 +371,7 @@ class OcLdapUserLockerTest(unittest.TestCase):
 
         # generate test user record
         usr = OcLdapUserRecord()
-        usr.set_attribute('cn', rnd.random_letters(rnd.random_number(10,17)))
+        usr.set_attribute('cn', rnd.random_letters(rnd.random_number(10, 17)))
 
         # now get the locker, mock called functions and do asserts
         _locker = self._get_locker()
@@ -413,7 +413,7 @@ class OcLdapUserLockerTest(unittest.TestCase):
 
         # generate test user record
         usr = OcLdapUserRecord()
-        usr.set_attribute('cn', rnd.random_letters(rnd.random_number(10,17)))
+        usr.set_attribute('cn', rnd.random_letters(rnd.random_number(10, 17)))
 
         # now get the locker, mock called functions and do asserts
         _locker = self._get_locker()
@@ -459,7 +459,7 @@ class OcLdapUserLockerTest(unittest.TestCase):
 
         # generate test user record
         usr = OcLdapUserRecord()
-        usr.set_attribute('cn', rnd.random_letters(rnd.random_number(10,17)))
+        usr.set_attribute('cn', rnd.random_letters(rnd.random_number(10, 17)))
 
         # now get the locker, mock called functions and do asserts
         _locker = self._get_locker()

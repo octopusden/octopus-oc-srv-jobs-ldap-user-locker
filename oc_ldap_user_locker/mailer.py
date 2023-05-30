@@ -40,11 +40,14 @@ class LockMailer:
             _env = _smtp_env.get(_key) or '_'.join(["SMTP", _key.upper()])
             _value = self._config.get(_key, os.getenv(_env))
 
-            if not _value:
-                raise ValueError("%s not set", _env)
+            if _value:
+                logging.debug("%s: '%s'" % (_env, _value))
+                self._config[_key] = _value
 
-            logging.debug("%s: '%s'" % (_env, _value))
-            self._config[_key] = _value
+        # 'url' and 'from' are required, 'user' and 'password' may be omitted for anonymous SMTP
+        for _k in ["url", "from"]:
+            if not self._config.get(_k):
+                raise ValueError("Required '%s' is not set for SMTP" % _k)
 
     def _check_path(self, path):
         """
@@ -86,15 +89,16 @@ class LockMailer:
         _url = self._config.get("url")
 
         if not re.match("(.*?:)?" + posixpath.sep + posixpath.sep, _url):
-            logging.warning("No schema specified at SMTP_URL: '%s', please start with 'smtp://'" % _url)
-            _url = "smtp:" + posixpath.sep + posixpath.sep + _url
+            _schema_default = "smtp:%s" % (posixpath.sep * 2)
+            logging.warning("No schema specified at SMTP_URL: '%s', using default '%s'" % (_url, _schema_default))
+            _url = ''.join([_schema_default, _url])
 
         _parse_result = urlparse.urlparse(_url)
         _host = _parse_result.hostname
         _port = _parse_result.port
 
         if not _host:
-            raise ValueError("Invalid SMTP_URL: host not parsed")
+            raise ValueError("Invalid SMTP_URL '%s': host not parsed" % _url)
 
         logging.debug("Parsing SMTP_URL, host='%s'" % _host)
 
@@ -105,7 +109,12 @@ class LockMailer:
         logging.debug("Port: %d" % _port)
 
         _client = smtplib.SMTP(host=_host, port=_port)
-        _client.login(self._config.get("user"), self._config.get("password"))
+
+        # login to SMTP if credentials given
+        if all(list(map(lambda x: self._config.get(x), ["user", "password"]))): 
+            logging.debug("SMTP auth as '%s'" % self._config.get("user"))
+            _client.login(self._config.get("user"), self._config.get("password"))
+
         return _client        
 
     def send_notification(self, mail_to, template_conf, template_substitutes):

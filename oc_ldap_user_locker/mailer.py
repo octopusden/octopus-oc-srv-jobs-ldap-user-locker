@@ -1,4 +1,3 @@
-from copy import deepcopy
 from oc_mailer import Mailer
 import logging
 import os

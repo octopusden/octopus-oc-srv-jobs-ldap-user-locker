@@ -5,6 +5,7 @@ from oc_ldap_client.oc_ldap_objects import OcLdapUserCat, OcLdapUserRecord
 import re
 import datetime
 from copy import copy
+from .mailer import LockMailer
 
 class OcLdapUserLocker:
     def __init__(self, config_path):
@@ -17,9 +18,46 @@ class OcLdapUserLocker:
 
         config_path = os.path.abspath(config_path)
         logging.info("Configuration path: '%s'" % config_path)
+        self._config_path = config_path
 
         with open(config_path, mode='rt') as _fl_in:
             self.config = json.load(_fl_in)
+
+        self._check_ldap_params()
+        self._mailer = None
+
+    def _check_ldap_params(self):
+        """
+        Check LDAP parameters are set
+        update them from environment if not
+        """
+        _ldap_params = self.config.get("LDAP")
+
+        if not _ldap_params:
+            logging.debug("LDAP configuration missing, trying to create it from environment")
+            self.config["LDAP"] = dict()
+            _ldap_params = self.config.get("LDAP")
+
+        _ldap_env = {
+                "url": "LDAP_URL",
+                "user_cert": "LDAP_TLS_CERT",
+                "user_key": "LDAP_TLS_KEY",
+                "ca_chain": "LDAP_TLS_CACERT",
+                "baseDn": "LDAP_BASE_DN"}
+
+        for _key in _ldap_env.keys():
+            _value = _ldap_params.get(_key) or os.getenv(_ldap_env.get(_key))
+
+            if not _value:
+                raise ValueError("%s not set", _ldap_env.get(_key))
+
+            if _key in ["user_cert", "ca_chain", "user_key"]:
+                # this is a path to file, make sure it is absolute
+                if not os.path.isabs(_value):
+                    _value = os.path.join(os.path.dirname(self._config_path), _value)
+
+            logging.debug("%s: '%s'" % (_ldap_env.get(_key), _value))
+            self.config["LDAP"][_key] = _value
 
     def _compare_attribute(self, values, match_conf):
         """
@@ -196,24 +234,106 @@ class OcLdapUserLocker:
         # now check the time attributes specified in the conf and find out the nearest one
         # note that 'tzinfo' is to be discarged because of possible datetime exception while
         #   subtracting them
-        _lock = self._check_lock_conf(_user_rec, _conf['days_valid'], _conf['time_attributes'])
+        _lock_date = self._get_account_lock_date(_user_rec, _conf['days_valid'], _conf['time_attributes'])
 
-        if not _lock:
+        if not _lock_date:
+            # should never happen
+            logging.debug("Account '%s' is not to be locked ever", _user_rec.get_attribute('cn'))
             return
+
+        logging.debug("Account lock date for '%s': '%s'" % (
+            _user_rec.get_attribute('cn'), _lock_date.isoformat(sep=" ")))
+
+        _days_before_lock = self._get_days_before_lock(_lock_date)
+        logging.debug("Days before lock account '%s': %d" % (
+            _user_rec.get_attribute('cn'), _days_before_lock))
+
+        # check lock e-mail notifications
+        self._check_lock_notifications(
+                _user_rec, _conf, lock_date=_lock_date, days_before_lock=_days_before_lock)
+
+        if _days_before_lock > 0:
+            logging.debug("Is not the time to lock '%s', returning" % _user_rec.get_attribute('cn'))
+            return
+
+        logging.info("Locking '%s', days: '%d'" % (
+            _user_rec.get_attribute('cn'), _days_before_lock))
 
         _user_rec.lock()
         ldap_c.put_record(_user_rec)
+       
+    def _check_lock_notifications(self, user_rec, conf, lock_date, days_before_lock):
+        """
+        Check if user is to be notified about account locking
+        Send mail notifications is so
+        :param OcLdapRecord user_rec: user record from LDAP catalogue
+        :param dict conf: configuration to check agianst
+        :param datetime.datetime lock_date: date when account will be locked
+        :param int days_before_lock: days left for the date when account will be locked
+        """
+        # if any of argumets absent then we should have an exception.
+        # so do not check
 
-    def _check_lock_conf(self, user_rec, days_valid, time_attributes):
+        if not conf.get("lock_notifications"):
+            logging.debug("Notifications are not configured for '%s'" % user_rec.get_attribute('cn'))
+            return
+
+        if not user_rec.get_attribute("mail"):
+            logging.debug("User '%s' nas no mail, nothing to do" % user_rec.get_attribute('cn')) 
+            return
+
+        # if 'days_before_lock' is negative - use zero-value notification since account is to be locked now
+        if days_before_lock < 0:
+            days_before_lock = 0
+
+        # if no suitable configuration for 'days_before_lock' - skip
+        _conf = list(filter(lambda x: x.get("days_before") == days_before_lock, conf.get("lock_notifications")))
+
+        if not _conf:
+            #empty list?
+            logging.debug("No notification for '%s' in %d days before lock" %
+                    (user_rec.get_attribute('cn'), days_before_lock))
+            return
+        
+        _conf = _conf.pop()
+
+        if not self._mailer:
+            self._mailer = LockMailer(self.config.get("SMTP") or dict(), os.path.dirname(self._config_path))
+
+        # filter substitutes for mail template
+        _substitutes = dict((_k, user_rec.get_attribute(_k)) for _k in [
+            'cn', 'givenName', 'sn', 'displayName'])
+
+        _substitutes.update({
+                "lockDate": lock_date.strftime("%Y-%d-%m"),
+                "lockDays": str(days_before_lock)})
+
+        self._mailer.send_notification(user_rec.get_attribute('mail'), _conf.get("template"), _substitutes)
+
+
+    def _get_days_before_lock(self, lock_date):
         """
         Check if user is to be locked or not
-        :param OcLdapRecord user_rec: record from LDAP
-        :param int days_valid: how many days record is valid
-        :param list time_attributes: list of time attributes to check (strings)
-        :return bool: True if user is to be locked
+        :param datetime.datetime lock_date: the date account should be locked at, without timezone, not None
+        :reurn int: days before lock, negative if 'after' lock
         """
         _today = datetime.datetime.now()
         _today = _today.replace(tzinfo=None)
+        _diff = lock_date - _today
+
+        return _diff.days
+
+    def _get_account_lock_date(self, user_rec, days_valid, time_attributes):
+        """
+        Calculate account lock date basing on current 'time_attribute' values
+        :param OcLdapRecord user_rec: record from LDAP
+        :param int days_valid: how many days record is valid
+        :param list time_attributes: list of time attributes to check (strings)
+        :return datetime.datetime: the date and time account should be locked; 'None' means 'never'
+        """
+
+        _result = None
+        _append = datetime.timedelta(days=days_valid)
 
         for _time_attrib in time_attributes:
             # note that list of time attributes is not supported, so assuming it is a datetime.datetime value
@@ -225,17 +345,18 @@ class OcLdapUserLocker:
             if not _time_value:
                 continue
 
-            # if any of attribute is 'less' than 'days' - do not lock an account
+            # appending 'days'
             _time_value = _time_value.replace(tzinfo=None)
-            _diff = _today - _time_value
+            _time_value = _time_value + _append
 
-            if _diff.days < days_valid:
-                logging.info("Not locking: '%s'" % user_rec.get_attribute('cn'))
-                return False
+            # we have to choose the value in the farest future of possibles
+            if not _result or _result < _time_value:
+                _result = _time_value
 
-        logging.info("Locking '%s'" % user_rec.get_attribute('cn'))
+        logging.debug("Locking date for '%s': '%s'" % (user_rec.get_attribute('cn'),
+            'None' if not _result else _result.isoformat(sep=' ')))
 
-        return True
+        return _result
 
     def run(self):
         """

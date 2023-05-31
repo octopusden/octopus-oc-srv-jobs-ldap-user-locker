@@ -21,10 +21,33 @@ Example:
         "ca_chain": "/home/user/ssl/test/CA.chain.pem",
         "baseDn": "dc=domain,dc=example,dc=local"
     },
+    "SMTP": {
+        "url": "smtp://test.smtp.example.com:25",
+        "user": "TEST_USER",
+        "password": "TEST_PASSWORD",
+        "from": "testuser@test.example.com",
+        "subject": "default e-mail subject"
+    },
     "users": [
         {
-            "days_valid": 30, 
-            "time_attributes": ["authTimestamp", "modifyTimeStamp", "createTimestamp"]
+            "days_valid": 90, 
+            "time_attributes": ["authTimestamp", "modifyTimeStamp", "createTimestamp"],
+            "lock_notifications": [
+                {
+                    "days_before": 30,
+                    "template": {
+                        "file": "default_en.html.template",
+                        "type": "html",
+                        "signature", "signature.png"},
+                        "subject": "e-mail subject"},
+                {
+                    "days_before": 10, 
+                    "template": {
+                        "file": "defualt_en.html.template",
+                        "type": "html",
+                        "signature": "signature.png'}
+                }
+            ]
         },
         {
             "days_valid": 0, 
@@ -68,3 +91,17 @@ Possible values _comparison_ sub-parameters:
 If _type_ is **regexp** then _Python_ regular expressions are required in _values_ section.
 Non-string attributes comparison is not supported.
 All comparisons are case-insensitive.
+
+### E-mail subject
+    - from notification configuration
+    - from global **SMTP** section if missing in template settings
+    - "Account lock warning" by default if both above missing
+
+## Mail template substitutes supported
+
+    * *cn* - user login
+    * *givenName* - user first name
+    * *sn* - user last name
+    * *displayName* - user display name
+    * *lockDate* - locking date ('YYYY-MM-DD')
+    * *lockDays* - days before locking

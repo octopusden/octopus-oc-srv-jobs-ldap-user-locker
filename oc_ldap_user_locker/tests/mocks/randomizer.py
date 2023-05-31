@@ -42,3 +42,9 @@ class Randomizer(object):
     def random_number(self, n_min=0, n_max=1):
         # proxy method to get rid of importing random module in another places
         return random.randint(n_min, n_max)
+
+    def random_email(self):
+        return '%s@%s.%s' % (
+                self.random_letters(self.random_number(7, 17)),
+                self.random_letters(self.random_number(12, 33)),
+                self.random_letters(self.random_number(3, 5)))

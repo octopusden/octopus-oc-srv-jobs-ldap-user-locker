@@ -147,16 +147,17 @@ class OcLdapUserLocker:
         Check user configuration is suitable for our case
         :param OcLdapRecord user_rec: LDAP record for user account
         :param dict conf: user configuration
-        :return bool:
+        :return (bool, int): configuration is applicable or not, number of attributes matched
         """
 
         # if no 'condition_attributes' specified - it is our case
         if not conf.get('condition_attributes'):
-            return True
+            return (True, 0)
 
         # search for attribute otherwise
         # all of attributes are to be matched
         # we have to raise an exception if one of mandatory values is not specified
+        _matched_attributes = 0
         for _attrib in conf['condition_attributes'].keys():
             logging.debug("Comparing attribute: '%s'" % _attrib)
             _vals_from_rec = user_rec.get_attribute(_attrib)
@@ -164,9 +165,11 @@ class OcLdapUserLocker:
 
             if not self._compare_attribute(_vals_from_rec, _match_conf):
                 logging.debug("Failed on attribute: '%s'" % _attrib)
-                return False
+                return False, None
 
-        return True
+            _matched_attributes += 1
+
+        return True, _matched_attributes
 
     def _find_valid_conf(self, user_rec):
         """
@@ -179,8 +182,10 @@ class OcLdapUserLocker:
         _conf_f = None
 
         # analyse all cases one-by-one
+        _matched_attributes = None
+
         for _conf in _users_conf:
-            _applicable = self._check_user_conf(user_rec, _conf)
+            (_applicable, _matched_attributes_c) = self._check_user_conf(user_rec, _conf)
 
             if not _applicable:
                 # this configuration can not be applied
@@ -189,13 +194,15 @@ class OcLdapUserLocker:
             if _conf_f is None:
                 # we found at least one suitable configration:
                 _conf_f = _conf
+                _matched_attributes = _matched_attributes_c
                 continue
             
             # select one with minimum valid days
             # the default value is not applicable for this parameter, so we have to raise an exception
             # for case it is not specified or has wrong type
-            if _conf_f['days_valid'] > _conf['days_valid']:
+            if _matched_attributes_c > _matched_attributes:
                 _conf_f = _conf
+                _matched_attributes = _matched_attributes_c
 
         return _conf_f
 

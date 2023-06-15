@@ -344,7 +344,7 @@ class OcLdapUserLockerTest(unittest.TestCase):
                     {
                         "days_valid": 30, 
                         "time_attributes": ["authTimestamp"]
-                        },
+                    },
                     {
                         "days_valid": 10,
                         "time_attributes": ["modifyTimeStamp"],
@@ -353,13 +353,15 @@ class OcLdapUserLockerTest(unittest.TestCase):
                             {
                                 "comparison": {"type": "flat", "condition": "any"},
                                 "values": ["Test_Display_name"]
-                                }}}]}
+                            }
+                        }
+                    }]}
 
         # match the first conf unconditionally
         usr.set_attribute("mail", "TEST@EXAMPLE.LOCAL")
         self.assertEqual(_locker._find_valid_conf(usr).get("days_valid"), 30)
 
-        # match by "displayName" should return it because 'days_valid' is lower
+        # match by "displayName" should return it because one attribute is matched while zero at first
         usr.set_attribute("displayName", "test_display_name")
         self.assertEqual(_locker._find_valid_conf(usr).get("days_valid"), 10)
 
@@ -384,8 +386,8 @@ class OcLdapUserLockerTest(unittest.TestCase):
                         "time_attributes": ["authTimestamp"],
                         "condition_attributes": {
                             "mail": {"values": ["test@example.local"]}
-                            }
-                        },
+                        }
+                    },
                     {
                         "days_valid": 10,
                         "time_attributes": ["modifyTimeStamp"],
@@ -394,7 +396,9 @@ class OcLdapUserLockerTest(unittest.TestCase):
                             {
                                 "comparison": {"type": "flat", "condition": "any"},
                                 "values": ["Test_Display_name"]
-                                }}}]}
+                            }
+                        }
+                    }]}
 
         # match the first conf by "mail"
         usr.set_attribute("mail", "TEST@EXAMPLE.LOCAL")
@@ -428,9 +432,9 @@ class OcLdapUserLockerTest(unittest.TestCase):
                             "mail": {
                                 "comparison": {"type": "regexp", "condition": "all"},
                                 "values": ["test@.*", "[^@]+@example\..*", "[^\.]+\.local"]
-                                }
                             }
-                        },
+                        }
+                    },
                     {
                         "days_valid": 10,
                         "time_attributes": ["modifyTimeStamp"],
@@ -481,7 +485,9 @@ class OcLdapUserLockerTest(unittest.TestCase):
                             "displayName": {
                                 "comparison": {"type": "regexp", "condition": "any"},
                                 "values": [".*test.*", ".*thisShouldNotMatch.*"]
-                                }}}]}
+                            }
+                        }
+                    }]}
 
         # first match, second not
         usr.set_attribute("mail", "TEST@EXAMPLE.LOCAL")

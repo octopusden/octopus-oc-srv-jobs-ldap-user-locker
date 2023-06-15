@@ -105,3 +105,7 @@ All comparisons are case-insensitive.
     * *displayName* - user display name
     * *lockDate* - locking date ('YYYY-MM-DD')
     * *lockDays* - days before locking
+
+## Which configuration section is used
+Up to v. 1.1.0: that one which has less `days_valid` value.
+Since v. 1.2.0: that one whicn has more strict filter correspondence. If amount of attributes matched is equal then first one comes with a configuration is used.

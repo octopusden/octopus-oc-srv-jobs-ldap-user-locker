@@ -147,12 +147,12 @@ class OcLdapUserLocker:
         Check user configuration is suitable for our case
         :param OcLdapRecord user_rec: LDAP record for user account
         :param dict conf: user configuration
-        :return (bool, int): configuration is applicable or not, number of attributes matched
+        :return int: number of attributes matched, or None if configuration is not applicable
         """
 
         # if no 'condition_attributes' specified - it is our case
         if not conf.get('condition_attributes'):
-            return (True, 0)
+            return 0
 
         # search for attribute otherwise
         # all of attributes are to be matched
@@ -165,11 +165,11 @@ class OcLdapUserLocker:
 
             if not self._compare_attribute(_vals_from_rec, _match_conf):
                 logging.debug("Failed on attribute: '%s'" % _attrib)
-                return False, None
+                return None
 
             _matched_attributes += 1
 
-        return True, _matched_attributes
+        return _matched_attributes
 
     def _find_valid_conf(self, user_rec):
         """
@@ -185,25 +185,19 @@ class OcLdapUserLocker:
         _matched_attributes = None
 
         for _conf in _users_conf:
-            (_applicable, _matched_attributes_c) = self._check_user_conf(user_rec, _conf)
+            _matched_attributes_c = self._check_user_conf(user_rec, _conf)
 
-            if not _applicable:
+            if _matched_attributes_c is None:
                 # this configuration can not be applied
                 continue
 
-            if _conf_f is None:
+            # NOTE: checking '_matched_attributes' for 'None' is a sort of paranoia since
+            #       it should never happen
+            if _conf_f is None or _matched_attributes_c > _matched_attributes:
                 # we found at least one suitable configration:
                 _conf_f = _conf
                 _matched_attributes = _matched_attributes_c
-                continue
             
-            # select one with minimum valid days
-            # the default value is not applicable for this parameter, so we have to raise an exception
-            # for case it is not specified or has wrong type
-            if _matched_attributes_c > _matched_attributes:
-                _conf_f = _conf
-                _matched_attributes = _matched_attributes_c
-
         return _conf_f
 
     def _process_single_user(self, ldap_c, user_dn):

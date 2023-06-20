@@ -11,6 +11,8 @@ jobs:
     name: Build Docker Image
     runs-on: ubuntu-latest
     steps:
+      - name: Show Current Directory
+        run: pwd
       - name: List Current Directory
         run: ls -1N --color=never
       - name: Build Docker Imate

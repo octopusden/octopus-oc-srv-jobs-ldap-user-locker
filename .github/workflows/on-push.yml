@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Build Docker Imate
-        uses: docker/build-push-action@main
+        uses: docker/build-push-action@master
         with:
           context: .
           file: Dockerfile

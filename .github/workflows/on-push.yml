@@ -6,3 +6,16 @@ jobs:
     with:
       process_env: Test
     secrets: inherit
+
+  build-docker-image:
+    name: Build Docker Image
+    needs: run-build-and-deploy
+    uses: docker/build-push-action@main
+    with:
+      context: .
+      file: Dockerfile
+      platforms: linux/amd64
+      push: false
+      build-args:
+        - DOCKER_REGISTRY_HOST: ghcr.io
+        - PYTHON_VERSION: 3.7

@@ -11,6 +11,8 @@ jobs:
     name: Build Docker Image
     runs-on: ubuntu-latest
     steps:
+      - name: List Current Directory
+        run: ls -1N --color=never
       - name: Build Docker Imate
         uses: docker/build-push-action@master
         with:

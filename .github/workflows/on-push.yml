@@ -10,6 +10,7 @@ jobs:
   build-docker-image:
     name: Build Docker Image
     needs: run-build-and-deploy
+    runs-on: ubuntu-latest
     steps:
       - name: Build Docker Imate
         uses: docker/build-push-action@main

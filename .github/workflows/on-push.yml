@@ -11,11 +11,11 @@ jobs:
     name: Build Docker Image
     runs-on: ubuntu-latest
     steps:
-      - name: Show Current Directory
-        run: pwd
-      - name: List Current Directory
-        run: ls -1N --color=never
-      - name: Build Docker Imate
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      - name: Build Docker Image
         uses: docker/build-push-action@master
         with:
           context: .

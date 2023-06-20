@@ -23,6 +23,6 @@ jobs:
           platforms: linux/amd64
           push: false
           build-args: |
-            DOCKER_REGISTRY_HOST="ghcr.io"
-            PYTHON_VERSION="3.7"
+            DOCKER_REGISTRY_HOST=ghcr.io
+            PYTHON_VERSION=3.7
 

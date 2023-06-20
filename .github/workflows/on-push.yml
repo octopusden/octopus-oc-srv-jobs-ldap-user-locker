@@ -19,6 +19,4 @@ jobs:
           file: Dockerfile
           platforms: linux/amd64
           push: false
-          build-args:
-            - DOCKER_REGISTRY_HOST: ghcr.io
-            - PYTHON_VERSION: 3.7
+          build-args: "DOCKER_REGISTRY_HOST=ghcr.io", "PYTHON_VERSION=3.7"

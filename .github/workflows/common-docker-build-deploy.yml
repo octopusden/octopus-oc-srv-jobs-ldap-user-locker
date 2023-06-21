@@ -1,0 +1,61 @@
+name: Docker Image Build And Push
+on:
+  workflow_call:
+    inputs:
+      context:
+        description: Relative path for docker build context
+        required: false
+        type: string
+        default: .
+      file:
+        description: Relative path to Dockerfile to use for build
+        required: false
+        type: string
+        default: Dockerfile
+      platforms:
+        description: Comma-separated list of platforms to build image for
+        required: false
+        type: string
+        default: linux/amd64
+      build-args:
+        description: Additional buid-args for an image build
+        required: false
+        type: string
+        default: |
+          DOCKER_REGISTRY_HOST=ghcr.io
+      registry:
+        description: Registry to login and push to
+        required: false
+        type: string
+        default: ghcr.io
+      tags:
+        required: false
+        type: string
+        default: ''
+
+    secrets:
+      GITHUB_TOKEN:
+        required: false
+
+jobs:
+  build-push-docker-image:
+    name: Build and push docker image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      - name: Login To Registry
+        if: inputs.tags
+        uses: docker/login-action@v2
+      - name: Build Docker Image
+        uses: docker/build-push-action@v3
+        with:
+          context: ${{ inputs.context }}
+          file: ${{ inputs.file }}
+          platforms: ${{ inputs.platforms }}
+          push: ${{ inputs.tags != '' }}
+          build-args: ${{ inputs.build-args }}
+          tags: ${{ inputs.tags }}
+

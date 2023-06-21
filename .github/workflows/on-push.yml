@@ -13,3 +13,5 @@ jobs:
       build-args: |
         DOCKER_REGISTRY_HOST=ghcr.io
         PYTHON_VERSION=3.7
+      tags: |
+        ghcr.io/${{ github.repository }}:${{ github.ref_name }}

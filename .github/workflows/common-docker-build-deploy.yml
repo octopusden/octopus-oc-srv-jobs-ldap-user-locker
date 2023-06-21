@@ -33,10 +33,6 @@ on:
         type: string
         default: ''
 
-    secrets:
-      GITHUB_TOKEN:
-        required: false
-
 jobs:
   build-push-docker-image:
     name: Build and push docker image

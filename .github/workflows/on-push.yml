@@ -7,8 +7,8 @@ jobs:
       process_env: Test
     secrets: inherit
 
-  build-docker-image:
-    uses: octopusden/octopus-oc-srv-jobs-ldap-user-locker/.github/workflows/common-docker-build-deploy.yml@8-add-docker-image-release-actions
+  build-push-docker-image:
+    uses: octopusden/octopus-base/.github/workflows/common-docker-build-deploy.yml@main
     with:
       build-args: |
         DOCKER_REGISTRY_HOST=ghcr.io

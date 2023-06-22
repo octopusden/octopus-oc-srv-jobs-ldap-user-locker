@@ -10,7 +10,7 @@ jobs:
     secrets: inherit
 
   build-push-docker-image:
-    uses: octopusden/octopus-oc-srv-jobs-ldap-user-locker/.github/workflows/common-docker-build-deploy.yml@8-add-docker-image-release-actions
+    uses: octopusden/octopus-base/.github/workflows/common-docker-build-deploy.yml@main
     with:
       build-args: |
         DOCKER_REGISTRY_HOST=ghcr.io

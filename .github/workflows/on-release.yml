@@ -1,9 +1,12 @@
 name: On Release, deploying to Prod
+
 variables:
   DOCKER_REGISTRY_HOST: ghcr.io
+
 on:
   release:
     types: [published]
+
 jobs:
   run-build-and-deploy:
     uses: octopusden/octopus-base/.github/workflows/common-py-build-deploy.yml@main
@@ -19,3 +22,4 @@ jobs:
       tags: |
         ${{ variables.DOCKER_REGISTRY_HOST }}/${{ github.repository }}:${{ github.ref_name }}
         ${{ variables.DOCKER_REGISTRY_HOST }}/${{ github.repository }}:latest
+

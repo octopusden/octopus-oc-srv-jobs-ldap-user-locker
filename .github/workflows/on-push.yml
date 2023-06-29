@@ -1,6 +1,6 @@
 name: On push, deploying to Test
 
-env:
+vars:
   DOCKER_REGISTRY_HOST: ghcr.io
 
 on: [push]
@@ -9,7 +9,7 @@ jobs:
   run-build-and-deploy:
     uses: octopusden/octopus-base/.github/workflows/common-py-build-deploy.yml@main
     with:
-      process_env: Test
+      process_vars: Test
     secrets: inherit
 
   build-push-docker-image:
@@ -18,4 +18,4 @@ jobs:
       build-args: |
         PYTHON_VERSION=3.7
       tags: |
-        ${{ env.DOCKER_REGISTRY_HOST }}/${{ github.repository }}:${{ github.ref_name }}
+        ${{ vars.DOCKER_REGISTRY_HOST }}/${{ github.repository }}:${{ github.ref_name }}

@@ -1,8 +1,5 @@
 name: On Release, deploying to Prod
 
-env:
-  DOCKER_REGISTRY_HOST: ghcr.io
-
 on:
   release:
     types: [published]
@@ -20,6 +17,6 @@ jobs:
       build-args: |
         PYTHON_VERSION=3.7
       tags: |
-        ${{ env.DOCKER_REGISTRY_HOST }}/${{ github.repository }}:${{ github.ref_name }}
-        ${{ env.DOCKER_REGISTRY_HOST }}/${{ github.repository }}:latest
+        ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+        ghcr.io/${{ github.repository }}:latest
 

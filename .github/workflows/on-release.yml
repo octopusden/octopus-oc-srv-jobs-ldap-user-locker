@@ -1,6 +1,6 @@
 name: On Release, deploying to Prod
 
-vars:
+env:
   DOCKER_REGISTRY_HOST: ghcr.io
 
 on:
@@ -11,7 +11,7 @@ jobs:
   run-build-and-deploy:
     uses: octopusden/octopus-base/.github/workflows/common-py-build-deploy.yml@main
     with:
-      process_vars: Prod
+      process_env: Prod
     secrets: inherit
 
   build-push-docker-image:
@@ -20,6 +20,6 @@ jobs:
       build-args: |
         PYTHON_VERSION=3.7
       tags: |
-        ${{ vars.DOCKER_REGISTRY_HOST }}/${{ github.repository }}:${{ github.ref_name }}
-        ${{ vars.DOCKER_REGISTRY_HOST }}/${{ github.repository }}:latest
+        ${{ env.DOCKER_REGISTRY_HOST }}/${{ github.repository }}:${{ github.ref_name }}
+        ${{ env.DOCKER_REGISTRY_HOST }}/${{ github.repository }}:latest
 

@@ -1,6 +1,6 @@
 name: On Release, deploying to Prod
 
-variables:
+env:
   DOCKER_REGISTRY_HOST: ghcr.io
 
 on:
@@ -20,6 +20,6 @@ jobs:
       build-args: |
         PYTHON_VERSION=3.7
       tags: |
-        ${{ variables.DOCKER_REGISTRY_HOST }}/${{ github.repository }}:${{ github.ref_name }}
-        ${{ variables.DOCKER_REGISTRY_HOST }}/${{ github.repository }}:latest
+        ${{ env.DOCKER_REGISTRY_HOST }}/${{ github.repository }}:${{ github.ref_name }}
+        ${{ env.DOCKER_REGISTRY_HOST }}/${{ github.repository }}:latest
 

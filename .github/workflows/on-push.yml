@@ -1,7 +1,11 @@
 name: On push, deploying to Test
 
-env:
-  DOCKER_REGISTRY_HOST: ghcr.io
+inputs:
+  docker_registry_host:
+    description: Docker registry host to push image to
+    required: false
+    type: string
+    default: ghcr.io
 
 on: [push]
 
@@ -18,4 +22,4 @@ jobs:
       build-args: |
         PYTHON_VERSION=3.7
       tags: |
-        ${{ env.DOCKER_REGISTRY_HOST }}/${{ github.repository }}:${{ github.ref_name }}
+        ${{ inputs.DOCKER_REGISTRY_HOST }}/${{ github.repository }}:${{ github.ref_name }}

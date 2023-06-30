@@ -1,6 +1,6 @@
 from setuptools import setup
 
-__version = "1.2.1"
+__version = "1.2.2"
 
 spec = {
     "name": "oc-ldap-user-locker",

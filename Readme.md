@@ -29,29 +29,60 @@ Example:
         "subject": "default e-mail subject"
     },
     "users": [
-        {
+		{
+            "days_valid": 730, 
+            "time_attributes": ["authTimestamp", "modifyTimeStamp", "createTimestamp"],
+			"condition_attributes": {   
+                "memberOf.businessCategory": {
+                    "values": [
+                        "Vendor"
+                    ]
+                }
+            },
+            "lock_notifications": [
+                {
+                    "days_before": 30,
+                    "template":{ 
+                        "file": "default_en.html.template",
+                        "type": "html",
+                        "signature": "signature.png"
+                    }
+                },
+                {
+                    "days_before": 10,
+                    "template":{ 
+                        "file": "default_en.html.template",
+                        "type": "html",
+                        "signature": "signature.png"
+                    }
+                }
+            ]
+        },
+		{
             "days_valid": 90, 
             "time_attributes": ["authTimestamp", "modifyTimeStamp", "createTimestamp"],
             "lock_notifications": [
                 {
                     "days_before": 30,
-                    "template": {
+                    "template":{ 
                         "file": "default_en.html.template",
                         "type": "html",
-                        "signature", "signature.png"},
-                        "subject": "e-mail subject"},
+                        "signature": "signature.png"
+                    }
+                },
                 {
-                    "days_before": 10, 
-                    "template": {
-                        "file": "defualt_en.html.template",
+                    "days_before": 10,
+                    "template":{ 
+                        "file": "default_en.html.template",
                         "type": "html",
-                        "signature": "signature.png'}
+                        "signature": "signature.png"
+                    }
                 }
             ]
         },
         {
             "days_valid": 0, 
-            "time_attributes": ["modifyTimeStamp", "createTimestamp"], 
+            "time_attributes": ["modifyTimeStamp", "createTimestamp"],
             "condition_attributes": 
             {
                 "mail": {

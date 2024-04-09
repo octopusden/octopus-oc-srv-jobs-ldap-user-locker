@@ -4,7 +4,7 @@ from .mocks.ldap3 import MockLdapConnection
 from .mocks.randomizer import Randomizer
 import os
 import ldap3
-from oc_ldap_client.oc_ldap_objects import OcLdapUserCat
+from oc_ldap_client.oc_ldap_objects import OcLdapUserCat, OcLdapGroupRecord
 from oc_ldap_client.oc_ldap_objects import OcLdapUserRecord
 from ..locker import OcLdapUserLocker
 import tempfile
@@ -287,6 +287,9 @@ class OcLdapUserLockerTest(unittest.TestCase):
         rnd = Randomizer()
         _now_t = datetime.datetime.now()
 
+        # get LDAP client list
+        ldap_c = self._get_ldap_user_cat()
+
         # generate test user record
         usr = OcLdapUserRecord()
         usr.set_attribute('cn', rnd.random_letters(rnd.random_number(10, 17)))
@@ -308,7 +311,7 @@ class OcLdapUserLockerTest(unittest.TestCase):
         usr.set_attribute("pwdAccountLockedTime", "000100001Z")
 
         with self.assertRaises(ValueError):
-            _locker._find_valid_conf(usr)
+            _locker._find_valid_conf(usr, ldap_c)
 
         # non-string value in LDAP
         _locker.config = {
@@ -324,12 +327,15 @@ class OcLdapUserLockerTest(unittest.TestCase):
         usr.set_attribute("pwdAccountLockedTime", datetime.datetime.now())
 
         with self.assertRaises(NotImplementedError):
-            _locker._find_valid_conf(usr)
+            _locker._find_valid_conf(usr, ldap_c)
 
     def test_find_valid_conf__no_attributes(self):
         # should return the configuration with lowest 'days_valid'
         rnd = Randomizer()
         _now_t = datetime.datetime.now()
+
+        # get LDAP client list
+        ldap_c = self._get_ldap_user_cat()
 
         # generate test user record
         usr = OcLdapUserRecord()
@@ -359,17 +365,20 @@ class OcLdapUserLockerTest(unittest.TestCase):
 
         # match the first conf unconditionally
         usr.set_attribute("mail", "TEST@EXAMPLE.LOCAL")
-        self.assertEqual(_locker._find_valid_conf(usr).get("days_valid"), 30)
+        self.assertEqual(_locker._find_valid_conf(usr, ldap_c).get("days_valid"), 30)
 
         # match by "displayName" should return it because one attribute is matched while zero at first
         usr.set_attribute("displayName", "test_display_name")
-        self.assertEqual(_locker._find_valid_conf(usr).get("days_valid"), 10)
+        self.assertEqual(_locker._find_valid_conf(usr, ldap_c).get("days_valid"), 10)
 
     def test_find_valid_conf__one_attribute_plain(self):
         # searching the configuration based on one attribute
         # comparison is plain-text, case-insensitive
         rnd = Randomizer()
         _now_t = datetime.datetime.now()
+
+        # get LDAP client list
+        ldap_c = self._get_ldap_user_cat()
 
         # generate test user record
         usr = OcLdapUserRecord()
@@ -402,18 +411,21 @@ class OcLdapUserLockerTest(unittest.TestCase):
 
         # match the first conf by "mail"
         usr.set_attribute("mail", "TEST@EXAMPLE.LOCAL")
-        self.assertEqual(_locker._find_valid_conf(usr).get("days_valid"), 30)
+        self.assertEqual(_locker._find_valid_conf(usr, ldap_c).get("days_valid"), 30)
 
         # break previous match and make it by "displayName"
         usr.set_attribute("mail", "test@another.example.local")
         usr.set_attribute("displayName", "test_display_name")
-        self.assertEqual(_locker._find_valid_conf(usr).get("days_valid"), 10)
+        self.assertEqual(_locker._find_valid_conf(usr, ldap_c).get("days_valid"), 10)
 
     def test_find_valid_conf__one_attribute_regexp(self):
         # searching the configuration based on one attribute
         # comparison is plain-text, case-insensitive
         rnd = Randomizer()
         _now_t = datetime.datetime.now()
+
+        # get LDAP client list
+        ldap_c = self._get_ldap_user_cat()
 
         # generate test user record
         usr = OcLdapUserRecord()
@@ -447,12 +459,12 @@ class OcLdapUserLockerTest(unittest.TestCase):
 
         # match the first conf by "mail"
         usr.set_attribute("mail", "TEST@EXAMPLE.LOCAL")
-        self.assertEqual(_locker._find_valid_conf(usr).get("days_valid"), 30)
+        self.assertEqual(_locker._find_valid_conf(usr, ldap_c).get("days_valid"), 30)
 
         # break previous match and make it by "displayName"
         usr.set_attribute("mail", "test@another.example.local")
         usr.set_attribute("displayName", "TEST_DISPLAY_NAME")
-        self.assertEqual(_locker._find_valid_conf(usr).get("days_valid"), 10)
+        self.assertEqual(_locker._find_valid_conf(usr, ldap_c).get("days_valid"), 10)
 
     def test_find_valid_conf__two_attributes_mixed(self):
         # make two-attirbutes match configuration and check various combinations
@@ -460,6 +472,9 @@ class OcLdapUserLockerTest(unittest.TestCase):
         # comparison is plain-text, case-insensitive
         rnd = Randomizer()
         _now_t = datetime.datetime.now()
+
+        # get LDAP client list
+        ldap_c = self._get_ldap_user_cat()
 
         # generate test user record
         usr = OcLdapUserRecord()
@@ -492,22 +507,103 @@ class OcLdapUserLockerTest(unittest.TestCase):
         # first match, second not
         usr.set_attribute("mail", "TEST@EXAMPLE.LOCAL")
         usr.set_attribute("displayName", "SURELY_UNMATCHED")
-        self.assertIsNone(_locker._find_valid_conf(usr))
+        self.assertIsNone(_locker._find_valid_conf(usr, ldap_c))
 
         # first mismatch, second match
         usr.set_attribute("mail", "TEST-but-not-match@EXAMPLE.LOCAL")
         usr.set_attribute("displayName", "SURELY_TEST_MATCH")
-        self.assertIsNone(_locker._find_valid_conf(usr))
+        self.assertIsNone(_locker._find_valid_conf(usr, ldap_c))
 
         # both mismatch
         usr.set_attribute("mail", "TEST-but-not-match@EXAMPLE.LOCAL")
         usr.set_attribute("displayName", "SURELY_NOT_MATCH")
-        self.assertIsNone(_locker._find_valid_conf(usr))
+        self.assertIsNone(_locker._find_valid_conf(usr, ldap_c))
 
         # both match
         usr.set_attribute("mail", "Yet-Another-TEST@EXAMPLE.LOCAL")
         usr.set_attribute("displayName", "Surely_TEST_Match")
-        self.assertEqual(_locker._find_valid_conf(usr).get("days_valid"), 30)
+        self.assertEqual(_locker._find_valid_conf(usr, ldap_c).get("days_valid"), 30)
+
+    def test_find_valid_conf__attribute_with_references_to_objects(self):
+        # searching the configuration based on one attribute
+        # comparison is plain-text, case-insensitive
+        rnd = Randomizer()
+        _now_t = datetime.datetime.now()
+
+        # get LDAP client list
+        ldap_c = self._get_ldap_user_cat()
+
+        # generate test group record
+        group = OcLdapGroupRecord()
+        group.set_attribute('cn', rnd.random_letters(rnd.random_number(7, 17)))
+        group.set_attribute('businessCategory', 'Vendor')
+        group = ldap_c.put_record(group)
+
+        # generate test user record
+        usr = OcLdapUserRecord()
+        usr.set_attribute('cn', rnd.random_letters(rnd.random_number(7, 17)))
+        usr.set_attribute('memberOf', "dc=some,dc=test,dc=domain,dc=local")
+
+        # now get the locker, mock called functions and do asserts
+        _locker = self._get_locker()
+
+        # non-string comparison value in configuration
+        _locker.config = {
+            "users": [
+                {
+                    "days_valid": 90,
+                    "time_attributes": ["authTimestamp"],
+                    "condition_attributes": {
+                        "memberOf.businessCategory": {
+                            "values": [
+                                "Client"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "days_valid": 100,
+                    "time_attributes": ["authTimestamp"],
+                    "condition_attributes": {
+                        "memberOf.businessCategory": {
+                            "values": [
+                                "Vendor"
+                            ]
+                        }
+                    }
+                }
+            ]
+        }
+
+        self.assertEqual(_locker._find_valid_conf(usr, ldap_c), None)
+
+        usr.set_attribute('memberOf', group.dn)
+        self.assertEqual(_locker._find_valid_conf(usr, ldap_c).get("days_valid"), 100)
+
+        group.set_attribute('businessCategory', 'Client')
+        ldap_c.put_record(group)
+        self.assertEqual(_locker._find_valid_conf(usr, ldap_c).get("days_valid"), 90)
+
+        _locker.config = {
+            "users": [
+                {
+                    "days_valid": 70,
+                    "time_attributes": ["authTimestamp"]
+                },
+                {
+                    "days_valid": 100,
+                    "time_attributes": ["authTimestamp"],
+                    "condition_attributes": {
+                        "memberOf.businessCategory": {
+                            "values": [
+                                "Vendor"
+                            ]
+                        }
+                    }
+                }
+            ]
+        }
+        self.assertEqual(_locker._find_valid_conf(usr, ldap_c).get("days_valid"), 70)
 
     def _close_tempfile(self, tf, delete=False):
         if not isinstance(tf, str):
@@ -546,17 +642,17 @@ class OcLdapUserLockerTest(unittest.TestCase):
         _tempfiles = list(self._close_tempfile(tempfile.mkstemp(suffix=".pem"), delete=False) for __t in range(0, 3))
         _env_patch = {
                 "LDAP_URL": "ldap://ldap.example.com",
-                "LDAP_TLS_CERT": _tempfiles[0],
-                "LDAP_TLS_KEY": _tempfiles[1],
-                "LDAP_TLS_CACERT": _tempfiles[2],
+                "LDAPTLS_CERT": _tempfiles[0],
+                "LDAPTLS_KEY": _tempfiles[1],
+                "LDAPTLS_CACERT": _tempfiles[2],
                 "LDAP_BASE_DN": "dc=example,dc=com"}
 
         with unittest.mock.patch.dict(os.environ, _env_patch):
             _locker._check_ldap_params()
             self.assertEqual(_locker.config["LDAP"]["url"], _env_patch.get("LDAP_URL"))
-            self.assertEqual(_locker.config["LDAP"]["user_cert"], _env_patch.get("LDAP_TLS_CERT"))
-            self.assertEqual(_locker.config["LDAP"]["user_key"], _env_patch.get("LDAP_TLS_KEY"))
-            self.assertEqual(_locker.config["LDAP"]["ca_chain"], _env_patch.get("LDAP_TLS_CACERT"))
+            self.assertEqual(_locker.config["LDAP"]["user_cert"], _env_patch.get("LDAPTLS_CERT"))
+            self.assertEqual(_locker.config["LDAP"]["user_key"], _env_patch.get("LDAPTLS_KEY"))
+            self.assertEqual(_locker.config["LDAP"]["ca_chain"], _env_patch.get("LDAPTLS_CACERT"))
             self.assertEqual(_locker.config["LDAP"]["baseDn"], _env_patch.get("LDAP_BASE_DN"))
 
         for _t in _tempfiles:
@@ -575,9 +671,9 @@ class OcLdapUserLockerTest(unittest.TestCase):
 
         _env_patch = {
                 "LDAP_URL": "ldap://ldap.example.com",
-                "LDAP_TLS_CERT": _subst_tempfiles[0],
-                "LDAP_TLS_KEY": _subst_tempfiles[1],
-                "LDAP_TLS_CACERT": _subst_tempfiles[2],
+                "LDAPTLS_CERT": _subst_tempfiles[0],
+                "LDAPTLS_KEY": _subst_tempfiles[1],
+                "LDAPTLS_CACERT": _subst_tempfiles[2],
                 "LDAP_BASE_DN": "dc=example,dc=com"}
 
         with unittest.mock.patch.dict(os.environ, _env_patch):
@@ -605,8 +701,8 @@ class OcLdapUserLockerTest(unittest.TestCase):
 
         _env_patch = {
                 "LDAP_URL": "ldap://ldap.example.com",
-                "LDAP_TLS_KEY": _subst_tempfiles[1],
-                "LDAP_TLS_CACERT": _subst_tempfiles[2],
+                "LDAPTLS_KEY": _subst_tempfiles[1],
+                "LDAPTLS_CACERT": _subst_tempfiles[2],
                 "LDAP_BASE_DN": "dc=example,dc=com"}
 
         _conf_patch = {
@@ -642,9 +738,9 @@ class OcLdapUserLockerTest(unittest.TestCase):
 
         _env_patch = {
                 "LDAP_URL": "ldap://ldap.example.com",
-                "LDAP_TLS_KEY": _subst_tempfiles[1],
-                "LDAP_TLS_CERT": _tempfiles[0],
-                "LDAP_TLS_CACERT": _subst_tempfiles[2],
+                "LDAPTLS_KEY": _subst_tempfiles[1],
+                "LDAPTLS_CERT": _tempfiles[0],
+                "LDAPTLS_CACERT": _subst_tempfiles[2],
                 "LDAP_BASE_DN": "dc=example,dc=com"}
 
         _conf_patch = {

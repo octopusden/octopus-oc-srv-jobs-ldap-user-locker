@@ -26,6 +26,7 @@ class OcLdapUserLocker:
 
         self._check_ldap_params()
         self._mailer = None
+        self._ldap_c = None
 
     def _check_ldap_params(self):
         """
@@ -60,90 +61,121 @@ class OcLdapUserLocker:
             logging.debug("%s: '%s'" % (_ldap_env.get(_key), _value))
             self.config["LDAP"][_key] = _value
 
-    def _compare_attribute(self, values, match_conf):
+    def _compare_attribute(self, attrib, user_rec, match_conf):
         """
         Compare a values to match configuration
-        :param list values: values to compare
+        :param attrib: attribute to compare
+        :param OcLdapRecord user_rec: LDAP record for user account
         :param dict match_conf: configuration dictionary
         """
-        if not values:
-            logging.debug("No values")
-            return False
 
         if not match_conf:
             # sure it is a bug
             raise ValueError("No match configuration given")
 
-        # check what type of comarison do we need
-        _comparison = match_conf.get('comparison') or dict()
-        _comparison_type = _comparison.get('type') or 'flat'
-        _comparison_condition = _comparison.get('condition') or 'all'
+        if "." not in attrib:
+            _values = user_rec.get_attribute(attrib)
 
-        if _comparison_type not in ['flat', 'regexp']:
-            raise NotImplementedError("Comparison of type '%s' is not supported" % (_comparison_type))
+            if not _values:
+                logging.debug("No values")
+                return False
 
-        if _comparison_condition not in ['all', 'any']:
-            raise NotImplementedError("Comparison condition '%s' is not supported" % (_comparison_condition))
+            # check what type of comarison do we need
+            _comparison = match_conf.get('comparison') or dict()
+            _comparison_type = _comparison.get('type') or 'flat'
+            _comparison_condition = _comparison.get('condition') or 'all'
 
-        logging.debug("Comparison type '%s', condtion '%s'" % (_comparison_type, _comparison_condition))
+            if _comparison_type not in ['flat', 'regexp']:
+                raise NotImplementedError("Comparison of type '%s' is not supported" % (_comparison_type))
 
-        # may be flat value given, convert it to list for looping below
-        if not isinstance(values, list):
-            values = [values]
+            if _comparison_condition not in ['all', 'any']:
+                raise NotImplementedError("Comparison condition '%s' is not supported" % (_comparison_condition))
 
-        # raise an exception if no 'values' given
-        _condition_values = match_conf['values']
-        _result = False
+            logging.debug("Comparison type '%s', condtion '%s'" % (_comparison_type, _comparison_condition))
 
-        for _condition_value in _condition_values:
-            if not _condition_value:
-                raise ValueError("Empty or inapplicable condition value: '%s'" % str(_condition_value))
+            # may be flat value given, convert it to list for looping below
+            if not isinstance(_values, list):
+                _values = [_values]
 
-            if not isinstance(_condition_value, str):
-                raise ValueError("Non-string comparison is not supported (type: '%s')" % type(_condition_value))
+            # raise an exception if no 'values' given
+            _condition_values = match_conf['values']
+            _result = False
 
-            # compare this value with LDAP
-            for _value in values:
-                if not _value:
-                    # empty values are OK for LDAP, just skip it
-                    continue
+            for _condition_value in _condition_values:
+                if not _condition_value:
+                    raise ValueError("Empty or inapplicable condition value: '%s'" % str(_condition_value))
 
-                if not isinstance(_value, str):
-                    raise NotImplementedError("Comparison of non-string attributes is not supported")
+                if not isinstance(_condition_value, str):
+                    raise ValueError("Non-string comparison is not supported (type: '%s')" % type(_condition_value))
 
-                # all comparison are case-insensitive
-                if _comparison_type == 'flat':
-                    if _condition_value.lower() == _value.lower():
+                # compare this value with LDAP
+                for _value in _values:
+                    if not _value:
+                        # empty values are OK for LDAP, just skip it
+                        continue
+
+                    if not isinstance(_value, str):
+                        raise NotImplementedError("Comparison of non-string attributes is not supported")
+
+                    # all comparison are case-insensitive
+                    if _comparison_type == 'flat':
+                        if _condition_value.lower() == _value.lower():
+
+                            if _comparison_condition == 'any':
+                                logging.debug("Match, returning True: '%s' === '%s'" % (_condition_value, _value))
+                                return True
+                            else:
+                                _result = True
+
+                        elif _comparison_condition == 'all':
+                            logging.debug("Mismatch, returning False: '%s' != '%s'" % (_condition_value, _value))
+                            return False
+
+                        continue
+
+                    # comparing as case-insensitive regexp
+                    if re.match(_condition_value, _value, flags=re.I):
 
                         if _comparison_condition == 'any':
-                            logging.debug("Match, returning True: '%s' === '%s'" % (_condition_value, _value))
+                            logging.debug("Match regexp, returning True: '%s' <<== '%s'" % (_condition_value, _value))
                             return True
                         else:
                             _result = True
 
                     elif _comparison_condition == 'all':
-                        logging.debug("Mismatch, returning False: '%s' != '%s'" % (_condition_value, _value))
+                        logging.debug("Mismatch regexp, returning False: '%s' !<<= '%s'" % (_condition_value, _value))
                         return False
 
-                    continue
+            logging.debug("Finall check: returning '%s'" % str(_result))
+            return _result
+        else:
+            # attribute containing references to objects + attribute to search for the values in these objects
+            [_attrib_main, _attrib_split] = attrib.split(".", 1)
 
-                # comapring as case-insensitive regexp
-                if re.match(_condition_value, _value, flags=re.I):
+            _object_dn_list = user_rec.get_attribute(_attrib_main)
 
-                    if _comparison_condition == 'any':
-                        logging.debug("Match regexp, returning True: '%s' <<== '%s'" % (_condition_value, _value))
-                        return True
-                    else:
-                        _result = True
+            if not _object_dn_list:
+                logging.debug("Comparing attribute '%s' is empty" % _attrib_main)
+                return False
 
-                elif _comparison_condition == 'all':
-                    logging.debug("Mismatch regexp, returning False: '%s' !<<= '%s'" % (_condition_value, _value))
-                    return False
+            if not isinstance(_object_dn_list, list):
+                _object_dn_list = [_object_dn_list]
 
-        logging.debug("Finall check: returning '%s'" % str(_result))
-        return _result
+            # filter empty values
+            _object_dn_list = list(filter(lambda _x: bool(_x), _object_dn_list))
 
-    def _check_user_conf(self, user_rec, conf, ldap_c):
+            _result = False
+            for _object_dn in _object_dn_list:
+                logging.debug("Started configuration analysis for object with DN = %s" % _object_dn)
+                _object_rec = self._ldap_c.get_record(_object_dn, OcLdapRecord)
+                if not self._compare_attribute(_attrib_split, _object_rec, match_conf):
+                    logging.debug("Failed on attribute: '%s'" % _attrib_split)
+                else:
+                    _result = True
+                    break
+            return _result
+
+    def _check_user_conf(self, user_rec, conf):
         """
         Check user configuration is suitable for our case
         :param OcLdapRecord user_rec: LDAP record for user account
@@ -162,45 +194,16 @@ class OcLdapUserLocker:
         for _attrib in conf['condition_attributes'].keys():
             logging.debug("Comparing attribute: '%s'" % _attrib)
             _match_conf = conf['condition_attributes'][_attrib]
-            
-            if "." not in _attrib:
-                _vals_from_rec = user_rec.get_attribute(_attrib)
 
-                if not self._compare_attribute(_vals_from_rec, _match_conf):
-                    logging.debug("Failed on attribute: '%s'" % _attrib)
-                    return None
-            else:
-                # attribute containing references to objects + attribute to search for the values in these objects
-                _attrib_pair = _attrib.split(".")
-                _is_match_object_attribute = False
-                _object_dn_list = []
-                _vals_from_ref_rec = user_rec.get_attribute(_attrib_pair[0])
-                if _vals_from_ref_rec is not None:
-                    if not isinstance(_vals_from_ref_rec, list):
-                        _object_dn_list.append(_vals_from_ref_rec)
-                    else:
-                        _object_dn_list = _vals_from_ref_rec
-
-                    for _object_dn in _object_dn_list:
-                        logging.debug("Started configuration analysis for object with DN = %s" % _object_dn)
-                        _object_rec = ldap_c.get_record(_object_dn, OcLdapRecord)
-                        _vals_from_rec = _object_rec.get_attribute(_attrib_pair[1])
-
-                        if not self._compare_attribute(_vals_from_rec, _match_conf):
-                            logging.debug("Failed on attribute: '%s'" % _attrib_pair[1])
-                        else:
-                            _is_match_object_attribute = True
-                            break
-
-                if not _is_match_object_attribute:
-                    logging.debug("Failed on attribute: '%s'" % _attrib)
-                    return None
+            if not self._compare_attribute(_attrib, user_rec, _match_conf):
+                logging.debug("Failed on attribute: '%s'" % _attrib)
+                return None
 
             _matched_attributes += 1
 
         return _matched_attributes
 
-    def _find_valid_conf(self, user_rec, ldap_c):
+    def _find_valid_conf(self, user_rec):
         """
         Parse users configuration and find valid days
         :param OcLdapRecord user_rec: LDAP record for user account
@@ -214,7 +217,7 @@ class OcLdapUserLocker:
         _matched_attributes = None
 
         for _conf in _users_conf:
-            _matched_attributes_c = self._check_user_conf(user_rec, _conf, ldap_c)
+            _matched_attributes_c = self._check_user_conf(user_rec, _conf)
 
             if _matched_attributes_c is None:
                 # this configuration can not be applied
@@ -229,15 +232,14 @@ class OcLdapUserLocker:
 
         return _conf_f
 
-    def _process_single_user(self, ldap_c, user_dn):
+    def _process_single_user(self, user_dn):
         """
         Process single user record
-        :param OCLDAPUSERCAT ldap_c: ldap client instance
         :param str user_dn: user record distinct name (DN)
         """
         logging.info("Processing user: DN=%s" % user_dn)
         _users_conf = self.config.get("users")
-        _user_rec = ldap_c.get_record(user_dn, OcLdapUserRecord)
+        _user_rec = self._ldap_c.get_record(user_dn, OcLdapUserRecord)
         logging.debug("User login: '%s'" % _user_rec.get_attribute('cn'))
         logging.debug("User e-mail: '%s'" % _user_rec.get_attribute('mail'))
         logging.debug("User created: '%s'" % _user_rec.get_attribute('createTimeStamp'))
@@ -250,7 +252,7 @@ class OcLdapUserLocker:
         logging.debug("Type of user modification date: '%s'" % type(_user_rec.get_attribute("modifyTimeStamp")))
 
         # search configuration to apply by attributes given
-        _conf = self._find_valid_conf(_user_rec, ldap_c)
+        _conf = self._find_valid_conf(_user_rec)
 
         # if no configuration found - do nothing
         if _conf is None:
@@ -290,7 +292,7 @@ class OcLdapUserLocker:
             _user_rec.get_attribute('cn'), _days_before_lock))
 
         _user_rec.lock()
-        ldap_c.put_record(_user_rec)
+        self._ldap_c.put_record(_user_rec)
 
     def _check_lock_notifications(self, user_rec, conf, lock_date, days_before_lock):
         """
@@ -396,9 +398,8 @@ class OcLdapUserLocker:
 
         # init LDAP client
         _ldap_params = self.config.get("LDAP")
-        _ldap_c = OcLdapUserCat(**_ldap_params)
-
+        self._ldap_c = OcLdapUserCat(**_ldap_params)
 
         # list all non-locked users and find the smallest days valid interval
-        for _user in _ldap_c.list_users(add_filter="(!(pwdAccountLockedTime=000001010000Z))"):
-            self._process_single_user(_ldap_c, _user)
+        for _user in self._ldap_c.list_users(add_filter="(!(pwdAccountLockedTime=000001010000Z))"):
+            self._process_single_user(_user)

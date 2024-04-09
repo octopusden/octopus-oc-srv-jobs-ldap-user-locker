@@ -42,7 +42,7 @@ Example:
             "lock_notifications": [
                 {
                     "days_before": 30,
-                    "template":{ 
+                    "template": { 
                         "file": "default_en.html.template",
                         "type": "html",
                         "signature": "signature.png"
@@ -50,7 +50,7 @@ Example:
                 },
                 {
                     "days_before": 10,
-                    "template":{ 
+                    "template": { 
                         "file": "default_en.html.template",
                         "type": "html",
                         "signature": "signature.png"
@@ -64,7 +64,7 @@ Example:
             "lock_notifications": [
                 {
                     "days_before": 30,
-                    "template":{ 
+                    "template": { 
                         "file": "default_en.html.template",
                         "type": "html",
                         "signature": "signature.png"
@@ -72,7 +72,7 @@ Example:
                 },
                 {
                     "days_before": 10,
-                    "template":{ 
+                    "template": { 
                         "file": "default_en.html.template",
                         "type": "html",
                         "signature": "signature.png"
@@ -82,7 +82,7 @@ Example:
         },
         {
             "days_valid": 0, 
-            "time_attributes": ["modifyTimeStamp", "createTimestamp"],
+            "time_attributes": ["modifyTimeStamp", "createTimestamp"], 
             "condition_attributes": 
             {
                 "mail": {

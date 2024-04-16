@@ -61,9 +61,88 @@ class OcLdapUserLocker:
             logging.debug("%s: '%s'" % (_ldap_env.get(_key), _value))
             self.config["LDAP"][_key] = _value
 
-    def _compare_attribute(self, attrib, user_rec, match_conf):
+    def _compare_attribute_values(self, values, match_conf):
         """
         Compare a values to match configuration
+        :param list values: values to compare
+        :param dict match_conf: configuration dictionary
+        """
+        if not values:
+            logging.debug("No values")
+            return False
+
+        # check what type of comarison do we need
+        _comparison = match_conf.get('comparison') or dict()
+        _comparison_type = _comparison.get('type') or 'flat'
+        _comparison_condition = _comparison.get('condition') or 'all'
+
+        if _comparison_type not in ['flat', 'regexp']:
+            raise NotImplementedError("Comparison of type '%s' is not supported" % (_comparison_type))
+
+        if _comparison_condition not in ['all', 'any']:
+            raise NotImplementedError("Comparison condition '%s' is not supported" % (_comparison_condition))
+
+        logging.debug("Comparison type '%s', condtion '%s'" % (_comparison_type, _comparison_condition))
+
+        # may be flat value given, convert it to list for looping below
+        if not isinstance(values, list):
+            values = [values]
+
+        # raise an exception if no 'values' given
+        _condition_values = match_conf['values']
+        _result = False
+
+        for _condition_value in _condition_values:
+            if not _condition_value:
+                raise ValueError("Empty or inapplicable condition value: '%s'" % str(_condition_value))
+
+            if not isinstance(_condition_value, str):
+                raise ValueError("Non-string comparison is not supported (type: '%s')" % type(_condition_value))
+
+            # compare this value with LDAP
+            for _value in values:
+                if not _value:
+                    # empty values are OK for LDAP, just skip it
+                    continue
+
+                if not isinstance(_value, str):
+                    raise NotImplementedError("Comparison of non-string attributes is not supported")
+
+                # all comparison are case-insensitive
+                if _comparison_type == 'flat':
+                    if _condition_value.lower() == _value.lower():
+
+                        if _comparison_condition == 'any':
+                            logging.debug("Match, returning True: '%s' === '%s'" % (_condition_value, _value))
+                            return True
+                        else:
+                            _result = True
+
+                    elif _comparison_condition == 'all':
+                        logging.debug("Mismatch, returning False: '%s' != '%s'" % (_condition_value, _value))
+                        return False
+
+                    continue
+
+                # comapring as case-insensitive regexp
+                if re.match(_condition_value, _value, flags=re.I):
+
+                    if _comparison_condition == 'any':
+                        logging.debug("Match regexp, returning True: '%s' <<== '%s'" % (_condition_value, _value))
+                        return True
+                    else:
+                        _result = True
+
+                elif _comparison_condition == 'all':
+                    logging.debug("Mismatch regexp, returning False: '%s' !<<= '%s'" % (_condition_value, _value))
+                    return False
+
+        logging.debug("Finall check: returning '%s'" % str(_result))
+        return _result
+
+    def _compare_attribute(self, attrib, user_rec, match_conf):
+        """
+        Get values of the attribute and call the method to compare them
         :param attrib: attribute to compare
         :param OcLdapRecord user_rec: LDAP record for user account
         :param dict match_conf: configuration dictionary
@@ -75,79 +154,7 @@ class OcLdapUserLocker:
 
         if "." not in attrib:
             _values = user_rec.get_attribute(attrib)
-
-            if not _values:
-                logging.debug("No values")
-                return False
-
-            # check what type of comarison do we need
-            _comparison = match_conf.get('comparison') or dict()
-            _comparison_type = _comparison.get('type') or 'flat'
-            _comparison_condition = _comparison.get('condition') or 'all'
-
-            if _comparison_type not in ['flat', 'regexp']:
-                raise NotImplementedError("Comparison of type '%s' is not supported" % (_comparison_type))
-
-            if _comparison_condition not in ['all', 'any']:
-                raise NotImplementedError("Comparison condition '%s' is not supported" % (_comparison_condition))
-
-            logging.debug("Comparison type '%s', condtion '%s'" % (_comparison_type, _comparison_condition))
-
-            # may be flat value given, convert it to list for looping below
-            if not isinstance(_values, list):
-                _values = [_values]
-
-            # raise an exception if no 'values' given
-            _condition_values = match_conf['values']
-            _result = False
-
-            for _condition_value in _condition_values:
-                if not _condition_value:
-                    raise ValueError("Empty or inapplicable condition value: '%s'" % str(_condition_value))
-
-                if not isinstance(_condition_value, str):
-                    raise ValueError("Non-string comparison is not supported (type: '%s')" % type(_condition_value))
-
-                # compare this value with LDAP
-                for _value in _values:
-                    if not _value:
-                        # empty values are OK for LDAP, just skip it
-                        continue
-
-                    if not isinstance(_value, str):
-                        raise NotImplementedError("Comparison of non-string attributes is not supported")
-
-                    # all comparison are case-insensitive
-                    if _comparison_type == 'flat':
-                        if _condition_value.lower() == _value.lower():
-
-                            if _comparison_condition == 'any':
-                                logging.debug("Match, returning True: '%s' === '%s'" % (_condition_value, _value))
-                                return True
-                            else:
-                                _result = True
-
-                        elif _comparison_condition == 'all':
-                            logging.debug("Mismatch, returning False: '%s' != '%s'" % (_condition_value, _value))
-                            return False
-
-                        continue
-
-                    # comparing as case-insensitive regexp
-                    if re.match(_condition_value, _value, flags=re.I):
-
-                        if _comparison_condition == 'any':
-                            logging.debug("Match regexp, returning True: '%s' <<== '%s'" % (_condition_value, _value))
-                            return True
-                        else:
-                            _result = True
-
-                    elif _comparison_condition == 'all':
-                        logging.debug("Mismatch regexp, returning False: '%s' !<<= '%s'" % (_condition_value, _value))
-                        return False
-
-            logging.debug("Finall check: returning '%s'" % str(_result))
-            return _result
+            return self._compare_attribute_values(_values, match_conf)
         else:
             # attribute containing references to objects + attribute to search for the values in these objects
             [_attrib_main, _attrib_split] = attrib.split(".", 1)

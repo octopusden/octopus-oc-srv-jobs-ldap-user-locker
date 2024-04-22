@@ -1,6 +1,7 @@
 import json
 import os
 import logging
+from oc_ldap_client.oc_ldap import OcLdapRecord
 from oc_ldap_client.oc_ldap_objects import OcLdapUserCat, OcLdapUserRecord
 import re
 import datetime
@@ -25,6 +26,7 @@ class OcLdapUserLocker:
 
         self._check_ldap_params()
         self._mailer = None
+        self._ldap_c = None
 
     def _check_ldap_params(self):
         """
@@ -39,11 +41,11 @@ class OcLdapUserLocker:
             _ldap_params = self.config.get("LDAP")
 
         _ldap_env = {
-                "url": "LDAP_URL",
-                "user_cert": "LDAP_TLS_CERT",
-                "user_key": "LDAP_TLS_KEY",
-                "ca_chain": "LDAP_TLS_CACERT",
-                "baseDn": "LDAP_BASE_DN"}
+            "url": "LDAP_URL",
+            "user_cert": "LDAPTLS_CERT",
+            "user_key": "LDAPTLS_KEY",
+            "ca_chain": "LDAPTLS_CACERT",
+            "baseDn": "LDAP_BASE_DN"}
 
         for _key in _ldap_env.keys():
             _value = _ldap_params.get(_key) or os.getenv(_ldap_env.get(_key))
@@ -59,7 +61,7 @@ class OcLdapUserLocker:
             logging.debug("%s: '%s'" % (_ldap_env.get(_key), _value))
             self.config["LDAP"][_key] = _value
 
-    def _compare_attribute(self, values, match_conf):
+    def _compare_attribute_values(self, values, match_conf):
         """
         Compare a values to match configuration
         :param list values: values to compare
@@ -68,10 +70,6 @@ class OcLdapUserLocker:
         if not values:
             logging.debug("No values")
             return False
-
-        if not match_conf:
-            # sure it is a bug
-            raise ValueError("No match configuration given")
 
         # check what type of comarison do we need
         _comparison = match_conf.get('comparison') or dict()
@@ -142,6 +140,48 @@ class OcLdapUserLocker:
         logging.debug("Finall check: returning '%s'" % str(_result))
         return _result
 
+    def _compare_attribute(self, attrib, user_rec, match_conf):
+        """
+        Get values of the attribute and call the method to compare them
+        :param attrib: attribute to compare
+        :param OcLdapRecord user_rec: LDAP record for user account
+        :param dict match_conf: configuration dictionary
+        """
+
+        if not match_conf:
+            # sure it is a bug
+            raise ValueError("No match configuration given")
+
+        if "." not in attrib:
+            _values = user_rec.get_attribute(attrib)
+            return self._compare_attribute_values(_values, match_conf)
+
+        # attribute containing references to objects + attribute to search for the values in these objects
+        [_attrib_main, _attrib_split] = attrib.split(".", 1)
+
+        _object_dn_list = user_rec.get_attribute(_attrib_main)
+
+        if not _object_dn_list:
+            logging.debug("Comparing attribute '%s' is empty" % _attrib_main)
+            return False
+
+        if not isinstance(_object_dn_list, list):
+            _object_dn_list = [_object_dn_list]
+
+        # filter empty values
+        _object_dn_list = list(filter(lambda _x: bool(_x), _object_dn_list))
+
+        _result = False
+        for _object_dn in _object_dn_list:
+            logging.debug("Started configuration analysis for object with DN = %s" % _object_dn)
+            _object_rec = self._ldap_c.get_record(_object_dn, OcLdapRecord)
+            if not self._compare_attribute(_attrib_split, _object_rec, match_conf):
+                logging.debug("Failed on attribute: '%s'" % _attrib_split)
+            else:
+                _result = True
+                break
+        return _result
+
     def _check_user_conf(self, user_rec, conf):
         """
         Check user configuration is suitable for our case
@@ -160,10 +200,9 @@ class OcLdapUserLocker:
         _matched_attributes = 0
         for _attrib in conf['condition_attributes'].keys():
             logging.debug("Comparing attribute: '%s'" % _attrib)
-            _vals_from_rec = user_rec.get_attribute(_attrib)
             _match_conf = conf['condition_attributes'][_attrib]
 
-            if not self._compare_attribute(_vals_from_rec, _match_conf):
+            if not self._compare_attribute(_attrib, user_rec, _match_conf):
                 logging.debug("Failed on attribute: '%s'" % _attrib)
                 return None
 
@@ -197,18 +236,17 @@ class OcLdapUserLocker:
                 # we found at least one suitable configration:
                 _conf_f = _conf
                 _matched_attributes = _matched_attributes_c
-            
+
         return _conf_f
 
-    def _process_single_user(self, ldap_c, user_dn):
+    def _process_single_user(self, user_dn):
         """
         Process single user record
-        :param OCLDAPUSERCAT ldap_c: ldap client instance
         :param str user_dn: user record distinct name (DN)
         """
         logging.info("Processing user: DN=%s" % user_dn)
         _users_conf = self.config.get("users")
-        _user_rec = ldap_c.get_record(user_dn, OcLdapUserRecord)
+        _user_rec = self._ldap_c.get_record(user_dn, OcLdapUserRecord)
         logging.debug("User login: '%s'" % _user_rec.get_attribute('cn'))
         logging.debug("User e-mail: '%s'" % _user_rec.get_attribute('mail'))
         logging.debug("User created: '%s'" % _user_rec.get_attribute('createTimeStamp'))
@@ -217,7 +255,7 @@ class OcLdapUserLocker:
         logging.debug("User created: '%s'" % _user_rec.get_attribute("createTimestamp"))
         logging.debug("Locked time: '%s'" % _user_rec.get_attribute("pwdAccountLockedTime"))
         logging.debug("Type of user created: '%s'" % type(_user_rec.get_attribute('createTimeStamp')))
-        logging.debug("Type of user last login: '%s'" % type (_user_rec.get_attribute("authTimestamp")))
+        logging.debug("Type of user last login: '%s'" % type(_user_rec.get_attribute("authTimestamp")))
         logging.debug("Type of user modification date: '%s'" % type(_user_rec.get_attribute("modifyTimeStamp")))
 
         # search configuration to apply by attributes given
@@ -225,7 +263,7 @@ class OcLdapUserLocker:
 
         # if no configuration found - do nothing
         if _conf is None:
-            logging.info("No suitable locking configuration for '%s'" %  _user_rec.get_attribute('cn'))
+            logging.info("No suitable locking configuration for '%s'" % _user_rec.get_attribute('cn'))
             return
 
         # this will raise an exception if any of mandatory parameter is missing or has wrong type
@@ -251,7 +289,7 @@ class OcLdapUserLocker:
 
         # check lock e-mail notifications
         self._check_lock_notifications(
-                _user_rec, _conf, lock_date=_lock_date, days_before_lock=_days_before_lock)
+            _user_rec, _conf, lock_date=_lock_date, days_before_lock=_days_before_lock)
 
         if _days_before_lock > 0:
             logging.debug("Is not the time to lock '%s', returning" % _user_rec.get_attribute('cn'))
@@ -261,8 +299,8 @@ class OcLdapUserLocker:
             _user_rec.get_attribute('cn'), _days_before_lock))
 
         _user_rec.lock()
-        ldap_c.put_record(_user_rec)
-       
+        self._ldap_c.put_record(_user_rec)
+
     def _check_lock_notifications(self, user_rec, conf, lock_date, days_before_lock):
         """
         Check if user is to be notified about account locking
@@ -280,7 +318,7 @@ class OcLdapUserLocker:
             return
 
         if not user_rec.get_attribute("mail"):
-            logging.debug("User '%s' nas no mail, nothing to do" % user_rec.get_attribute('cn')) 
+            logging.debug("User '%s' nas no mail, nothing to do" % user_rec.get_attribute('cn'))
             return
 
         # if 'days_before_lock' is negative - use zero-value notification since account is to be locked now
@@ -291,11 +329,11 @@ class OcLdapUserLocker:
         _conf = list(filter(lambda x: x.get("days_before") == days_before_lock, conf.get("lock_notifications")))
 
         if not _conf:
-            #empty list?
+            # empty list?
             logging.debug("No notification for '%s' in %d days before lock" %
-                    (user_rec.get_attribute('cn'), days_before_lock))
+                          (user_rec.get_attribute('cn'), days_before_lock))
             return
-        
+
         _conf = _conf.pop()
 
         if not self._mailer:
@@ -306,8 +344,8 @@ class OcLdapUserLocker:
             'cn', 'givenName', 'sn', 'displayName'])
 
         _substitutes.update({
-                "lockDate": lock_date.strftime("%Y-%d-%m"),
-                "lockDays": str(days_before_lock)})
+            "lockDate": lock_date.strftime("%Y-%d-%m"),
+            "lockDays": str(days_before_lock)})
 
         self._mailer.send_notification(user_rec.get_attribute('mail'), _conf.get("template"), _substitutes)
 
@@ -355,7 +393,7 @@ class OcLdapUserLocker:
                 _result = _time_value
 
         logging.debug("Locking date for '%s': '%s'" % (user_rec.get_attribute('cn'),
-            'None' if not _result else _result.isoformat(sep=' ')))
+                                                       'None' if not _result else _result.isoformat(sep=' ')))
 
         return _result
 
@@ -367,9 +405,8 @@ class OcLdapUserLocker:
 
         # init LDAP client
         _ldap_params = self.config.get("LDAP")
-        _ldap_c = OcLdapUserCat(**_ldap_params)
-
+        self._ldap_c = OcLdapUserCat(**_ldap_params)
 
         # list all non-locked users and find the smallest days valid interval
-        for _user in _ldap_c.list_users(add_filter="(!(pwdAccountLockedTime=000001010000Z))"):
-            self._process_single_user(_ldap_c, _user)
+        for _user in self._ldap_c.list_users(add_filter="(!(pwdAccountLockedTime=000001010000Z))"):
+            self._process_single_user(_user)

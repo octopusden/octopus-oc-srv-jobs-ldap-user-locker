@@ -4,7 +4,7 @@ from .mocks.ldap3 import MockLdapConnection
 from .mocks.randomizer import Randomizer
 import os
 import ldap3
-from oc_ldap_client.oc_ldap_objects import OcLdapUserCat
+from oc_ldap_client.oc_ldap_objects import OcLdapUserCat, OcLdapGroupRecord
 from oc_ldap_client.oc_ldap_objects import OcLdapUserRecord
 from ..locker import OcLdapUserLocker
 import tempfile
@@ -53,32 +53,34 @@ class OcLdapUserLockerTest(unittest.TestCase):
         # to get rid of 'unclosed resource' wraning it is better to close tempfile explicitly
         _config.close()
         _result._mailer = unittest.mock.MagicMock()
+
+        # get LDAP client list
+        _result._ldap_c = self._get_ldap_user_cat()
         return _result
 
     def test_run(self):
         # put many records and check _process_single_user runs exactly the number of unlocked records stored
         # do not add extra records to MockLdapConnection
-        ldap_t = self._get_ldap_user_cat()
         rnd = Randomizer()
-        self.assertEqual(0, len(ldap_t.list_users()))
-
-        # get initial users list
-        # append users one-by-one and test its dn is in list
-        list_dns = ldap_t.list_users()
-
-        for idx in range(17, 37):
-            usr = OcLdapUserRecord()
-            usr.set_attribute('cn', rnd.random_letters(idx))
-            usr = ldap_t.put_record(usr)
-            self.assertIsNotNone(usr.dn)
-            list_dns.append(usr.dn)
 
         # now construct OcLdapUserLocker object
         _locker = self._get_locker()
         _locker._process_single_user = unittest.mock.MagicMock()
+        self.assertEqual(0, len(_locker._ldap_c.list_users()))
+
+        # get initial users list
+        # append users one-by-one and test its dn is in list
+        list_dns = _locker._ldap_c.list_users()
+
+        for idx in range(17, 37):
+            usr = OcLdapUserRecord()
+            usr.set_attribute('cn', rnd.random_letters(idx))
+            usr = _locker._ldap_c.put_record(usr)
+            self.assertIsNotNone(usr.dn)
+            list_dns.append(usr.dn)
 
         def _cat_ret(*args, **kwargs):
-            return ldap_t
+            return _locker._ldap_c
 
         with unittest.mock.patch('oc_ldap_user_locker.locker.OcLdapUserCat', new=_cat_ret):
             _locker.run()
@@ -86,74 +88,77 @@ class OcLdapUserLockerTest(unittest.TestCase):
         self.assertEqual(_locker._process_single_user.call_count, len(list_dns))
 
         for _dn in list_dns:
-            _locker._process_single_user.assert_any_call(ldap_t, _dn)
+            _locker._process_single_user.assert_any_call(_dn)
 
     ## process_single_user
     def test_process_single_user__no_valid_conf(self):
-        ldap_t = self._get_ldap_user_cat()
         rnd = Randomizer()
+
+        # now get the locker
+        _locker = self._get_locker()
 
         # generate test user record
         usr = OcLdapUserRecord()
         usr.set_attribute('cn', rnd.random_letters(rnd.random_number(10, 17)))
-        usr = ldap_t.put_record(usr)
+        usr = _locker._ldap_c.put_record(usr)
 
-        # now get the locker, mock called functions and do asserts
-        _locker = self._get_locker()
+        # mock called functions and do asserts
         _locker._find_valid_conf = unittest.mock.MagicMock(return_value=None)
         _locker._get_account_lock_date = unittest.mock.MagicMock()
 
-        _locker._process_single_user(ldap_t, usr.dn)
+        _locker._process_single_user(usr.dn)
         _locker._find_valid_conf.assert_called_once()
         _locker._get_account_lock_date.assert_not_called()
-        _usr_modified = ldap_t.get_record(usr.dn, OcLdapUserRecord)
+        _usr_modified = _locker._ldap_c.get_record(usr.dn, OcLdapUserRecord)
         self.assertIsNone(_usr_modified.is_locked)
 
     def test_process_single_user__do_lock(self):
         # sould be locked
-        ldap_t = self._get_ldap_user_cat()
         rnd = Randomizer()
+
+        # now get the locker
+        _locker = self._get_locker()
 
         # generate test user record
         usr = OcLdapUserRecord()
         usr.set_attribute('cn', rnd.random_letters(rnd.random_number(10, 17)))
-        usr = ldap_t.put_record(usr)
+        usr = _locker._ldap_c.put_record(usr)
 
-        # now get the locker, mock called functions and do asserts
-        _locker = self._get_locker()
+        # mock called functions and do asserts
         _conf = {'days_valid': 0, 'time_attributes': ['modifyTimeStamp']}
         _locker._find_valid_conf = unittest.mock.MagicMock(return_value=_conf)
         _lock_date = datetime.datetime.now() - datetime.timedelta(days=rnd.random_number(2, 4))
         _locker._get_account_lock_date = unittest.mock.MagicMock(return_value=_lock_date)
 
-        _locker._process_single_user(ldap_t, usr.dn)
+        _locker._process_single_user(usr.dn)
         _locker._find_valid_conf.assert_called_once()
         _locker._get_account_lock_date.assert_called_once()
-        _usr_modified = ldap_t.get_record(usr.dn, OcLdapUserRecord)
+        _usr_modified = _locker._ldap_c.get_record(usr.dn, OcLdapUserRecord)
         self.assertIsNotNone(_usr_modified.is_locked)
         self.assertEqual(_usr_modified.is_locked, '000001010000Z') 
 
     def test_process_single_user__no_lock(self):
         # sould not be locked
-        ldap_t = self._get_ldap_user_cat()
         rnd = Randomizer()
+
+        # now get the locker
+        _locker = self._get_locker()
 
         # generate test user record
         usr = OcLdapUserRecord()
         usr.set_attribute('cn', rnd.random_letters(rnd.random_number(10, 17)))
-        usr = ldap_t.put_record(usr)
+        usr = _locker._ldap_c.put_record(usr)
 
-        # now get the locker, mock called functions and do asserts
-        _locker = self._get_locker()
+        # mock called functions and do asserts
         _conf = {'days_valid': 30, 'time_attributes': ['modifyTimeStamp', 'createTimeStamp']}
         _locker._find_valid_conf = unittest.mock.MagicMock(return_value=_conf)
         _lock_date = datetime.datetime.now() + datetime.timedelta(days=rnd.random_number(37, 53))
         _locker._get_account_lock_date = unittest.mock.MagicMock(return_value=_lock_date)
 
-        _locker._process_single_user(ldap_t, usr.dn)
+        _locker._process_single_user(usr.dn)
         _locker._find_valid_conf.assert_called_once()
         _locker._get_account_lock_date.assert_called_once()
-        _usr_modified = ldap_t.get_record(usr.dn, OcLdapUserRecord)
+        _usr_modified = _locker._ldap_c.get_record(usr.dn, OcLdapUserRecord)
         self.assertIsNone(_usr_modified.is_locked)
 
     ## get_account_lock_date
@@ -509,6 +514,85 @@ class OcLdapUserLockerTest(unittest.TestCase):
         usr.set_attribute("displayName", "Surely_TEST_Match")
         self.assertEqual(_locker._find_valid_conf(usr).get("days_valid"), 30)
 
+    def test_find_valid_conf__attribute_with_references_to_objects(self):
+        # searching the configuration based on one attribute
+        # comparison is plain-text, case-insensitive
+        rnd = Randomizer()
+        _now_t = datetime.datetime.now()
+
+        # now get the locker
+        _locker = self._get_locker()
+
+        # non-string comparison value in configuration
+        _locker.config = {
+            "users": [
+                {
+                    "days_valid": 90,
+                    "time_attributes": ["authTimestamp"],
+                    "condition_attributes": {
+                        "memberOf.businessCategory": {
+                            "values": [
+                                "Client"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "days_valid": 100,
+                    "time_attributes": ["authTimestamp"],
+                    "condition_attributes": {
+                        "memberOf.businessCategory": {
+                            "values": [
+                                "Vendor"
+                            ]
+                        }
+                    }
+                }
+            ]
+        }
+
+        # generate test group record
+        group = OcLdapGroupRecord()
+        group.set_attribute('cn', rnd.random_letters(rnd.random_number(7, 17)))
+        group.set_attribute('businessCategory', 'Vendor')
+        group = _locker._ldap_c.put_record(group)
+
+        # generate test user record
+        usr = OcLdapUserRecord()
+        usr.set_attribute('cn', rnd.random_letters(rnd.random_number(7, 17)))
+        usr.set_attribute('memberOf', "dc=some,dc=test,dc=domain,dc=local")
+
+        # mock called functions and do asserts
+        self.assertEqual(_locker._find_valid_conf(usr), None)
+
+        usr.set_attribute('memberOf', group.dn)
+        self.assertEqual(_locker._find_valid_conf(usr).get("days_valid"), 100)
+
+        group.set_attribute('businessCategory', 'Client')
+        _locker._ldap_c.put_record(group)
+        self.assertEqual(_locker._find_valid_conf(usr).get("days_valid"), 90)
+
+        _locker.config = {
+            "users": [
+                {
+                    "days_valid": 70,
+                    "time_attributes": ["authTimestamp"]
+                },
+                {
+                    "days_valid": 100,
+                    "time_attributes": ["authTimestamp"],
+                    "condition_attributes": {
+                        "memberOf.businessCategory": {
+                            "values": [
+                                "Vendor"
+                            ]
+                        }
+                    }
+                }
+            ]
+        }
+        self.assertEqual(_locker._find_valid_conf(usr).get("days_valid"), 70)
+
     def _close_tempfile(self, tf, delete=False):
         if not isinstance(tf, str):
             _fd, _pth = tf
@@ -546,17 +630,17 @@ class OcLdapUserLockerTest(unittest.TestCase):
         _tempfiles = list(self._close_tempfile(tempfile.mkstemp(suffix=".pem"), delete=False) for __t in range(0, 3))
         _env_patch = {
                 "LDAP_URL": "ldap://ldap.example.com",
-                "LDAP_TLS_CERT": _tempfiles[0],
-                "LDAP_TLS_KEY": _tempfiles[1],
-                "LDAP_TLS_CACERT": _tempfiles[2],
+                "LDAPTLS_CERT": _tempfiles[0],
+                "LDAPTLS_KEY": _tempfiles[1],
+                "LDAPTLS_CACERT": _tempfiles[2],
                 "LDAP_BASE_DN": "dc=example,dc=com"}
 
         with unittest.mock.patch.dict(os.environ, _env_patch):
             _locker._check_ldap_params()
             self.assertEqual(_locker.config["LDAP"]["url"], _env_patch.get("LDAP_URL"))
-            self.assertEqual(_locker.config["LDAP"]["user_cert"], _env_patch.get("LDAP_TLS_CERT"))
-            self.assertEqual(_locker.config["LDAP"]["user_key"], _env_patch.get("LDAP_TLS_KEY"))
-            self.assertEqual(_locker.config["LDAP"]["ca_chain"], _env_patch.get("LDAP_TLS_CACERT"))
+            self.assertEqual(_locker.config["LDAP"]["user_cert"], _env_patch.get("LDAPTLS_CERT"))
+            self.assertEqual(_locker.config["LDAP"]["user_key"], _env_patch.get("LDAPTLS_KEY"))
+            self.assertEqual(_locker.config["LDAP"]["ca_chain"], _env_patch.get("LDAPTLS_CACERT"))
             self.assertEqual(_locker.config["LDAP"]["baseDn"], _env_patch.get("LDAP_BASE_DN"))
 
         for _t in _tempfiles:
@@ -575,9 +659,9 @@ class OcLdapUserLockerTest(unittest.TestCase):
 
         _env_patch = {
                 "LDAP_URL": "ldap://ldap.example.com",
-                "LDAP_TLS_CERT": _subst_tempfiles[0],
-                "LDAP_TLS_KEY": _subst_tempfiles[1],
-                "LDAP_TLS_CACERT": _subst_tempfiles[2],
+                "LDAPTLS_CERT": _subst_tempfiles[0],
+                "LDAPTLS_KEY": _subst_tempfiles[1],
+                "LDAPTLS_CACERT": _subst_tempfiles[2],
                 "LDAP_BASE_DN": "dc=example,dc=com"}
 
         with unittest.mock.patch.dict(os.environ, _env_patch):
@@ -605,8 +689,8 @@ class OcLdapUserLockerTest(unittest.TestCase):
 
         _env_patch = {
                 "LDAP_URL": "ldap://ldap.example.com",
-                "LDAP_TLS_KEY": _subst_tempfiles[1],
-                "LDAP_TLS_CACERT": _subst_tempfiles[2],
+                "LDAPTLS_KEY": _subst_tempfiles[1],
+                "LDAPTLS_CACERT": _subst_tempfiles[2],
                 "LDAP_BASE_DN": "dc=example,dc=com"}
 
         _conf_patch = {
@@ -642,9 +726,9 @@ class OcLdapUserLockerTest(unittest.TestCase):
 
         _env_patch = {
                 "LDAP_URL": "ldap://ldap.example.com",
-                "LDAP_TLS_KEY": _subst_tempfiles[1],
-                "LDAP_TLS_CERT": _tempfiles[0],
-                "LDAP_TLS_CACERT": _subst_tempfiles[2],
+                "LDAPTLS_KEY": _subst_tempfiles[1],
+                "LDAPTLS_CERT": _tempfiles[0],
+                "LDAPTLS_CACERT": _subst_tempfiles[2],
                 "LDAP_BASE_DN": "dc=example,dc=com"}
 
         _conf_patch = {

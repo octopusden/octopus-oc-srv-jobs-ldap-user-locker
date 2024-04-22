@@ -155,32 +155,32 @@ class OcLdapUserLocker:
         if "." not in attrib:
             _values = user_rec.get_attribute(attrib)
             return self._compare_attribute_values(_values, match_conf)
-        else:
-            # attribute containing references to objects + attribute to search for the values in these objects
-            [_attrib_main, _attrib_split] = attrib.split(".", 1)
 
-            _object_dn_list = user_rec.get_attribute(_attrib_main)
+        # attribute containing references to objects + attribute to search for the values in these objects
+        [_attrib_main, _attrib_split] = attrib.split(".", 1)
 
-            if not _object_dn_list:
-                logging.debug("Comparing attribute '%s' is empty" % _attrib_main)
-                return False
+        _object_dn_list = user_rec.get_attribute(_attrib_main)
 
-            if not isinstance(_object_dn_list, list):
-                _object_dn_list = [_object_dn_list]
+        if not _object_dn_list:
+            logging.debug("Comparing attribute '%s' is empty" % _attrib_main)
+            return False
 
-            # filter empty values
-            _object_dn_list = list(filter(lambda _x: bool(_x), _object_dn_list))
+        if not isinstance(_object_dn_list, list):
+            _object_dn_list = [_object_dn_list]
 
-            _result = False
-            for _object_dn in _object_dn_list:
-                logging.debug("Started configuration analysis for object with DN = %s" % _object_dn)
-                _object_rec = self._ldap_c.get_record(_object_dn, OcLdapRecord)
-                if not self._compare_attribute(_attrib_split, _object_rec, match_conf):
-                    logging.debug("Failed on attribute: '%s'" % _attrib_split)
-                else:
-                    _result = True
-                    break
-            return _result
+        # filter empty values
+        _object_dn_list = list(filter(lambda _x: bool(_x), _object_dn_list))
+
+        _result = False
+        for _object_dn in _object_dn_list:
+            logging.debug("Started configuration analysis for object with DN = %s" % _object_dn)
+            _object_rec = self._ldap_c.get_record(_object_dn, OcLdapRecord)
+            if not self._compare_attribute(_attrib_split, _object_rec, match_conf):
+                logging.debug("Failed on attribute: '%s'" % _attrib_split)
+            else:
+                _result = True
+                break
+        return _result
 
     def _check_user_conf(self, user_rec, conf):
         """
